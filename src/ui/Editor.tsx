@@ -10,9 +10,7 @@ import {
   cellPts,
   cubeFaces,
   hexPts,
-  key,
   nearestPoint,
-  pointsOnSheet,
   toIJ,
   rhombAt,
   roundIJ,
@@ -37,7 +35,6 @@ import {
   rotateCopies,
   type TrianglePair,
   isTurned,
-  showsAsCorner,
   newId,
   pivotOf,
   recolor,
@@ -48,10 +45,13 @@ import {
 } from '../geo/shapes';
 import { type Doc, centredView, gridOf, sheetOf, zoomView } from '../model/doc';
 import { saveDoc } from '../model/store';
+import { type Ask, AskBubble, PlaneButtons, ReadingButtons, type Reading } from './Choices';
 import { ColorWheel } from './ColorWheel';
-import { exportPng, printDoc, saveFile } from './exporting';
+import { ExportMenu, GridMenu } from './EditorMenus';
+import { GridLayer, Outline, ShapeView } from './SheetLayers';
+import { useDocHistory } from './useDocHistory';
 import * as I from './icons';
-import { GRID_DOT, GRID_LINE, gridSegments, pathD, strokeWidth } from './render';
+import { pathD, strokeWidth } from './render';
 import { type Fit, Stage } from './Stage';
 import { type PlaneChoice, insertCubeAt, planeChoice, project, stackCube } from '../geo/space';
 
@@ -59,13 +59,6 @@ const View3D = lazy(() => import('./View3D'));
 
 type Tool = 'select' | 'cube' | 'rhomb' | 'triangle' | 'hexagon' | 'pen' | 'paint' | 'erase' | 'pick';
 const SHAPE_TOOLS: Tool[] = ['cube', 'rhomb', 'triangle', 'hexagon'];
-const PLANE_NAMES: Record<RhombType, string> = { 0: 'Tisch', 1: 'Wand', 2: 'Wand' };
-const PLANE_TITLES: Record<RhombType, string> = {
-  0: 'Liegt wie ein Tisch (wie der Würfeldeckel)',
-  1: 'Steht als Wand (wie die rechte Würfelseite)',
-  2: 'Steht als Wand (wie die linke Würfelseite)',
-};
-
 type Drag =
   | { mode: 'move'; start: Pt; base: Shape[]; ids: string[]; d: LP; moved: boolean }
   | { mode: 'rect'; start: Pt }
@@ -80,16 +73,7 @@ interface Props {
 }
 
 export function Editor({ initial, onExit }: Props) {
-  const [doc, setDoc] = useState(initial);
-  const docRef = useRef(doc);
-  // History lives in a ref (read synchronously by every handler); the counter re-renders the buttons.
-  const hist = useRef<{ past: Shape[][]; future: Shape[][] }>({ past: [], future: [] });
-  const [, setHistVersion] = useState(0);
-  const pushPast = (prev: Shape[]) => {
-    hist.current = { past: [...hist.current.past.slice(-149), prev], future: [] };
-    setHistVersion((v) => v + 1);
-  };
-  const gestureBase = useRef<Shape[] | null>(null);
+  const { doc, docRef, setShapes, setDocProps, commit, begin, end, cancelGesture, undo: undoDoc, redo: redoDoc, canUndo, canRedo } = useDocHistory(initial);
 
   const [tool, setToolRaw] = useState<Tool>('cube');
   const prevTool = useRef<Tool>('cube');
@@ -109,7 +93,7 @@ export function Editor({ initial, onExit }: Props) {
    * A shape that can be read two ways was just made: ask whether it lies or stands (drawn shapes),
    * or whether a turned cube plate is a cube or a corner.
    */
-  const [ask, setAsk] = useState<{ id: string; kind: 'plane'; options: RhombType[] } | { id: string; kind: 'reading' } | null>(null);
+  const [ask, setAsk] = useState<Ask | null>(null);
 
   const [selection, setSelection] = useState<string[]>([]);
   const [faceSel, setFaceSel] = useState<number | null>(null);
@@ -127,62 +111,19 @@ export function Editor({ initial, onExit }: Props) {
   const { w, h } = sheetOf(doc);
   const shapes = doc.shapes;
 
-  // ---------------------------------------------------------------- document & history
-
-  const setShapes = (next: Shape[]) => {
-    docRef.current = { ...docRef.current, shapes: next, updated: Date.now() };
-    setDoc(docRef.current);
-  };
-  const setDocProps = (p: Partial<Doc>) => {
-    docRef.current = { ...docRef.current, ...p, updated: Date.now() };
-    setDoc(docRef.current);
-  };
-
-  const commit = (next: Shape[]) => {
-    const prev = docRef.current.shapes;
-    if (prev === next) return;
-    pushPast(prev);
-    setShapes(next);
-  };
-
-  const begin = () => {
-    gestureBase.current = docRef.current.shapes;
-  };
-  const end = () => {
-    const base = gestureBase.current;
-    gestureBase.current = null;
-    if (base && base !== docRef.current.shapes) pushPast(base);
-  };
-  const cancelGesture = () => {
-    if (gestureBase.current) setShapes(gestureBase.current);
-    gestureBase.current = null;
-  };
+  // ---------------------------------------------------------------- history
 
   const undo = () => {
-    const { past, future } = hist.current;
-    if (!past.length) return;
-    hist.current = { past: past.slice(0, -1), future: [docRef.current.shapes, ...future] };
-    setHistVersion((v) => v + 1);
-    setShapes(past[past.length - 1]);
+    if (!undoDoc()) return;
     setAsk(null);
     setSelection([]);
     setFaceSel(null);
   };
   const redo = () => {
-    const { past, future } = hist.current;
-    if (!future.length) return;
-    hist.current = { past: [...past, docRef.current.shapes], future: future.slice(1) };
-    setHistVersion((v) => v + 1);
-    setShapes(future[0]);
+    if (!redoDoc()) return;
     setSelection([]);
     setFaceSel(null);
   };
-
-  // Autosave shortly after every change.
-  useEffect(() => {
-    const t = setTimeout(() => void saveDoc(doc), 400);
-    return () => clearTimeout(t);
-  }, [doc]);
 
   const exit = async () => {
     finishPen();
@@ -415,7 +356,7 @@ export function Editor({ initial, onExit }: Props) {
   const drawnSel = selShapes.length > 0 && selShapes.every((s) => s.kind !== 'cube' && s.kind !== 'rhomb');
   const choices: PlaneChoice[] = drawnSel ? selShapes.map((s) => planeChoice(shapes, s.id)).filter((c): c is PlaneChoice => !!c) : [];
   const shownPlane = choices.length && choices.every((c) => c.plane === choices[0].plane) ? choices[0].plane : null;
-  const setReading = (reading: 'cube' | 'corner', id: string) => {
+  const setReading = (reading: Reading, id: string) => {
     commit(docRef.current.shapes.map((s) => (s.id === id ? { ...s, reading } : s)));
     setAsk(null);
   };
@@ -582,36 +523,6 @@ export function Editor({ initial, onExit }: Props) {
 
   // ---------------------------------------------------------------- drawing
 
-  const grid = useMemo(() => {
-    if (!doc.gridVisible) return null;
-    if (doc.gridStyle === 'lines') {
-      const d = gridSegments(g, w, h)
-        .map(([a, b, c, e]) => `M${a} ${b}L${c} ${e}`)
-        .join('');
-      return <path d={d} stroke={GRID_LINE} strokeWidth={g.s * 0.025} fill="none" />;
-    }
-    return pointsOnSheet(g, w, h).map((p) => {
-      const q = toXY(g, p);
-      return <circle key={key(p)} cx={q.x} cy={q.y} r={g.s * 0.05} fill={GRID_DOT} />;
-    });
-  }, [doc.gridVisible, doc.gridStyle, doc.view, doc.format]);
-
-  const drawShape = (s: Shape, extra?: Partial<React.SVGProps<SVGPathElement>>) => {
-    const sw = strokeWidth(g, s.width);
-    if (s.kind === 'line')
-      return <path key={s.id} data-kind="line" d={pathD(g, s.parts[0].pts, false)} fill="none" stroke={s.stroke ?? STROKES[0]} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" {...extra} />;
-    return (
-      <g key={s.id} data-kind={s.kind}>
-        {s.parts.map((p, i) => (
-          <path key={i} d={pathD(g, p.pts, true)} fill={p.fill ?? 'none'} stroke={s.stroke ?? 'none'} strokeWidth={sw} strokeLinejoin="round" {...extra} />
-        ))}
-      </g>
-    );
-  };
-
-  const outline = (s: Shape, cls: string, extraW = 0) =>
-    s.parts.map((p, i) => <path key={s.id + i} className={cls} d={pathD(g, p.pts, s.kind !== 'line')} strokeWidth={strokeWidth(g, 1) + extraW} />);
-
   const candShapes = (c: Candidate) => c.ids.map((id) => shapes.find((s) => s.id === id)).filter((s): s is Shape => !!s);
 
   // ---------------------------------------------------------------- UI pieces
@@ -633,54 +544,6 @@ export function Editor({ initial, onExit }: Props) {
   const swatch = (c: string, on: boolean, onClick: () => void, label: string, ring = false) => (
     <button key={label} className={'swatch' + (on ? ' on' : '') + (ring ? ' ring' : '')} style={ring ? { borderColor: c } : { background: c }} onClick={onClick} aria-label={label} title={label} />
   );
-
-  /** Speech bubble next to a freshly made tipping figure or turned cube plate. */
-  const askBubble = () => {
-    const sh = shapes.find((x) => x.id === ask!.id);
-    if (!sh || !fit) return null;
-    const pts = sh.parts.flatMap((p) => p.pts).map((q) => toXY(g, q));
-    const cx = pts.reduce((a, q) => a + q.x, 0) / pts.length;
-    const top = Math.min(...pts.map((q) => q.y));
-    const W = wrapRef.current?.clientWidth ?? 600;
-    const x = Math.max(130, Math.min(W - 130, fit.tx + cx * fit.scale));
-    const y = Math.max(8, fit.ty + top * fit.scale - 10);
-    const a = ask!;
-    return (
-      <div className={'ask' + (y < 140 ? ' below' : '')} style={{ left: x, top: y < 140 ? fit.ty + Math.max(...pts.map((q) => q.y)) * fit.scale + 10 : y }}>
-        <div className="ask-q">{a.kind === 'plane' ? 'Liegt sie oder steht sie?' : 'Würfel oder Ecke?'}</div>
-        <div className="ask-row">
-          {a.kind === 'plane'
-            ? a.options.map((pl) => (
-                <button key={pl} className="plane-btn" onClick={() => setPlane(pl, [a.id])} title={PLANE_TITLES[pl]} aria-label={PLANE_TITLES[pl]}>
-                  <I.RhombIcon type={pl} />
-                  <span>{PLANE_NAMES[pl]}</span>
-                </button>
-              ))
-            : readingButtons(sh, (r) => setReading(r, a.id))}
-          <button className="ask-x" onClick={() => setAsk(null)} aria-label="Später">
-            <I.CloseIcon />
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  /** "Würfel" (seen from below) or "Ecke" (inner corner) for a turned cube plate. */
-  const readingButtons = (sh: Shape, pick: (r: 'cube' | 'corner') => void, highlight = false) => {
-    const corner = showsAsCorner(sh);
-    return (
-      <>
-        <button className={'plane-btn' + (highlight && !corner ? ' on' : '')} onClick={() => pick('cube')} title="Ein Würfel, von unten gesehen" aria-label="Würfel">
-          <I.CubeIcon variant={0} colors={[sh.parts[0].fill ?? '#ffd166', sh.parts[1].fill ?? '#b39248', sh.parts[2].fill ?? '#ffe3a1']} />
-          <span>Würfel</span>
-        </button>
-        <button className={'plane-btn' + (highlight && corner ? ' on' : '')} onClick={() => pick('corner')} title="Eine Ecke wie in einem Zimmer: Boden und zwei Wände" aria-label="Ecke">
-          <I.CubeIcon variant={1} colors={[sh.parts[0].fill ?? '#ffd166', sh.parts[1].fill ?? '#b39248', sh.parts[2].fill ?? '#ffe3a1']} />
-          <span>Ecke</span>
-        </button>
-      </>
-    );
-  };
 
   const curFill = singleCube && faceSel !== null ? singleCube.parts[faceSel].fill : fill;
 
@@ -712,82 +575,14 @@ export function Editor({ initial, onExit }: Props) {
         >
           <I.ThreeDIcon /> <span className="lbl">3D</span>
         </button>
-        <button className="round top-history" onClick={undo} disabled={!hist.current.past.length} aria-label="Rückgängig" title="Rückgängig">
+        <button className="round top-history" onClick={undo} disabled={!canUndo} aria-label="Rückgängig" title="Rückgängig">
           <I.UndoIcon />
         </button>
-        <button className="round top-history" onClick={redo} disabled={!hist.current.future.length} aria-label="Wiederholen" title="Wiederholen">
+        <button className="round top-history" onClick={redo} disabled={!canRedo} aria-label="Wiederholen" title="Wiederholen">
           <I.RedoIcon />
         </button>
-        <div className="menu-anchor">
-          <button className={'round' + (menu === 'grid' ? ' on' : '')} onClick={() => setMenu(menu === 'grid' ? null : 'grid')} aria-label="Raster" title="Raster">
-            <I.GridIcon style={doc.gridVisible ? doc.gridStyle : 'off'} />
-          </button>
-          {menu === 'grid' && (
-            <div className="menu">
-              <div className="menu-label">Raster</div>
-              <div className="seg">
-                <button className={doc.gridVisible && doc.gridStyle === 'points' ? 'on' : ''} onClick={() => setDocProps({ gridStyle: 'points', gridVisible: true })}>
-                  <I.GridIcon style="points" /> Punkte
-                </button>
-                <button className={doc.gridVisible && doc.gridStyle === 'lines' ? 'on' : ''} onClick={() => setDocProps({ gridStyle: 'lines', gridVisible: true })}>
-                  <I.GridIcon style="lines" /> Linien
-                </button>
-                <button className={!doc.gridVisible ? 'on' : ''} onClick={() => setDocProps({ gridVisible: false })}>
-                  <I.GridIcon style="off" /> Aus
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="menu-anchor">
-          <button className={'round' + (menu === 'export' ? ' on' : '')} onClick={() => setMenu(menu === 'export' ? null : 'export')} aria-label="Speichern und Teilen" title="Speichern und Teilen">
-            <I.ShareIcon />
-          </button>
-          {menu === 'export' && (
-            <div className="menu right">
-              <button
-                onClick={() => {
-                  setMenu(null);
-                  exportPng(docRef.current, false).catch((e) => alert(String(e)));
-                }}
-              >
-                Als Bild speichern (PNG)
-              </button>
-              <button
-                onClick={() => {
-                  setMenu(null);
-                  printDoc(docRef.current, false);
-                }}
-              >
-                Drucken / PDF
-              </button>
-              <button
-                onClick={() => {
-                  setMenu(null);
-                  printDoc({ ...docRef.current, gridVisible: true }, true);
-                }}
-              >
-                Drucken mit Raster
-              </button>
-              <button
-                onClick={() => {
-                  setMenu(null);
-                  printDoc({ ...docRef.current, shapes: [], gridVisible: true }, true);
-                }}
-              >
-                Leeres Raster drucken (Arbeitsblatt)
-              </button>
-              <button
-                onClick={() => {
-                  setMenu(null);
-                  saveFile(docRef.current);
-                }}
-              >
-                Als Datei speichern
-              </button>
-            </div>
-          )}
-        </div>
+        <GridMenu open={menu === 'grid'} toggle={() => setMenu(menu === 'grid' ? null : 'grid')} doc={doc} set={setDocProps} />
+        <ExportMenu open={menu === 'export'} toggle={() => setMenu(menu === 'export' ? null : 'export')} current={() => docRef.current} />
       </header>
 
       <main className="work">
@@ -799,21 +594,33 @@ export function Editor({ initial, onExit }: Props) {
               </clipPath>
             </defs>
             <g clipPath="url(#sheet-clip)">
-              {grid}
-              {shapes.map((s) => drawShape(s))}
-              {ghost && <g className="ghost">{drawShape(ghost)}</g>}
+              {doc.gridVisible && <GridLayer g={g} w={w} h={h} style={doc.gridStyle} />}
+              {shapes.map((s) => (
+                <ShapeView key={s.id} s={s} g={g} />
+              ))}
+              {ghost && (
+                <g className="ghost">
+                  <ShapeView s={ghost} g={g} tag={false} />
+                </g>
+              )}
             </g>
             {candidates.map((c, i) => (
               <g key={i} className={'cand' + (c === active ? ' active' : '')}>
-                {candShapes(c).map((s) => outline(s, 'cand-line', g.s * 0.06))}
+                {candShapes(c).map((s) => (
+                  <Outline key={s.id} s={s} g={g} cls="cand-line" extra={g.s * 0.06} />
+                ))}
               </g>
             ))}
             {activeTri && (
               <g className="cand active">
-                {activeTri.ids.map((id) => shapes.find((x) => x.id === id)).map((x) => x && outline(x, 'cand-line', g.s * 0.06))}
+                {activeTri.ids
+                  .map((id) => shapes.find((x) => x.id === id))
+                  .map((x) => x && <Outline key={x.id} s={x} g={g} cls="cand-line" extra={g.s * 0.06} />)}
               </g>
             )}
-            {selShapes.map((s) => outline(s, 'sel-line'))}
+            {selShapes.map((s) => (
+              <Outline key={s.id} s={s} g={g} cls="sel-line" />
+            ))}
             {singleCube && faceSel !== null && <path className="face-line" d={pathD(g, singleCube.parts[faceSel].pts, true)} strokeWidth={g.s * 0.09} />}
             {poly.length > 0 && (
               <g className="pen">
@@ -836,7 +643,18 @@ export function Editor({ initial, onExit }: Props) {
               />
             )}
           </Stage>
-          {ask && fit && askBubble()}
+          {ask && fit && shapes.some((x) => x.id === ask.id) && (
+            <AskBubble
+              ask={ask}
+              shape={shapes.find((x) => x.id === ask.id)!}
+              grid={g}
+              fit={fit}
+              width={wrapRef.current?.clientWidth ?? 600}
+              onPlane={(pl) => setPlane(pl, [ask.id])}
+              onReading={(r) => setReading(r, ask.id)}
+              onClose={() => setAsk(null)}
+            />
+          )}
           <div className="zoom">
             <button className="round small" onClick={() => zoom(1.3, { x: w / 2, y: h / 2 })} aria-label="Hineinzoomen" title="Hineinzoomen">
               <I.PlusIcon />
@@ -864,7 +682,7 @@ export function Editor({ initial, onExit }: Props) {
             {toolBtn('erase', <I.EraserIcon />, 'Radiergummi')}
             {toolBtn('pick', <I.PipetteIcon />, 'Farbe aufnehmen')}
             <span className="sep" />
-            <button className="tool" onClick={undo} disabled={!hist.current.past.length} aria-label="Rückgängig" title="Rückgängig">
+            <button className="tool" onClick={undo} disabled={!canUndo} aria-label="Rückgängig" title="Rückgängig">
               <I.UndoIcon />
             </button>
             <button className="tool danger" onClick={deleteSel} disabled={!selShapes.length} aria-label="Auswahl löschen" title="Auswahl löschen">
@@ -927,12 +745,7 @@ export function Editor({ initial, onExit }: Props) {
           {drawnSel && choices.length > 0 && (
             <div className="row planes">
               <span className="label">Lage in 3D</span>
-              {([0, 2, 1] as RhombType[]).map((pl) => (
-                <button key={pl} className={'plane-btn' + (shownPlane === pl ? ' on' : '')} onClick={() => setPlane(pl, selection)} title={PLANE_TITLES[pl]} aria-label={PLANE_TITLES[pl]}>
-                  <I.RhombIcon type={pl} />
-                  <span>{PLANE_NAMES[pl]}</span>
-                </button>
-              ))}
+              <PlaneButtons planes={[0, 2, 1]} on={shownPlane} pick={(pl) => setPlane(pl, selection)} />
               <span className="hint">
                 {choices.some((c) => c.chosen)
                   ? 'Du hast die Lage gewählt.'
@@ -946,7 +759,7 @@ export function Editor({ initial, onExit }: Props) {
           {singleCube && isTurned(singleCube) && (
             <div className="row planes">
               <span className="label">In 3D</span>
-              {readingButtons(singleCube, (r) => setReading(r, singleCube.id), true)}
+              <ReadingButtons shape={singleCube} pick={(r) => setReading(r, singleCube.id)} highlight />
               <span className="hint">{singleCube.reading ? 'Du hast gewählt.' : 'Gedrehtes Plättchen: Würfel von unten oder Zimmerecke – du entscheidest.'}</span>
             </div>
           )}

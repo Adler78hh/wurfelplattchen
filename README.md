@@ -103,4 +103,9 @@ GitHub Pages. Dafür muss einmalig unter *Settings → Pages → Source* „GitH
 - `src/model/doc.ts`: Bild, Blattformate, Dateiformat.
 - `src/model/store.ts`: Galerie in IndexedDB (alte Bilder aus localStorage werden einmal übernommen; ohne IndexedDB weiter localStorage).
 - `src/model/examples.ts`: Beispielbilder.
-- `src/ui/`: React-Oberfläche (Galerie, Editor, zoombare Zeichenfläche, Farbrad, Export).
+- `src/ui/`: React-Oberfläche
+  - `Editor.tsx`: Zeichenbildschirm mit Werkzeugen und Auswahl; `useDocHistory.ts`: Bild, Rückgängig/Wiederholen, automatisches Speichern.
+  - `Stage.tsx`: Zeichenfläche mit Fingergesten; `SheetLayers.tsx`: Raster und Formen als SVG.
+  - `Choices.tsx`: Tisch/Wand und Würfel/Ecke als Knöpfe und Sprechblase; `EditorMenus.tsx`: Raster- und Teilen-Menü.
+  - `View3D.tsx`: 3D-Ansicht mit three.js (nachgeladen); `Gallery.tsx`, `ColorWheel.tsx`, `exporting.ts`, `render.ts`.
+- `e2e/`: Oberflächentests (Playwright).
