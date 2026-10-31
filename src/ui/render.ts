@@ -29,7 +29,8 @@ export function gridSegments(g: Grid, w: number, h: number): [number, number, nu
     out.push([x, 0, x, h]);
   }
   // Slanted lines through the points (0, j): y = oy + j·s ± (x − ox)/√3.
-  const span = (w + g.s) / SQ3;
+  // The view can be moved, so the origin may lie anywhere relative to the sheet.
+  const span = (Math.max(Math.abs(g.ox), Math.abs(w - g.ox)) + g.s) / SQ3;
   const jMin = Math.floor((-span - g.oy) / g.s) - 1;
   const jMax = Math.ceil((h + span - g.oy) / g.s) + 1;
   for (let j = jMin; j <= jMax; j++) {

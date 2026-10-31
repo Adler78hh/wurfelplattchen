@@ -120,11 +120,30 @@ describe('copy and file', () => {
   });
 
   it('saves and loads a drawing', () => {
-    const d = { ...newDoc('a4q', 1, 'points', 'Test'), shapes: [rhomb([1, 1], 2)] };
+    const d = { ...newDoc('a4q', 'points', 'Test'), shapes: [rhomb([1, 1], 2)] };
     const back = fromFile(toFile(d))!;
     expect(back.shapes).toEqual(d.shapes);
     expect(back.name).toBe('Test');
     expect(fromFile('{"app":"x"}')).toBeNull();
     expect(fromFile('kein json')).toBeNull();
+  });
+});
+
+describe('zoom', () => {
+  it('keeps the point under the fingers in place', async () => {
+    const { zoomView, centredView, S_MAX, S_MIN } = await import('../src/model/doc');
+    const v = centredView('a4q');
+    const z = zoomView(v, 2, 100, 80);
+    const before = toXY(v, [3, 2]);
+    const after = toXY(z, [3, 2]);
+    expect(after.x - 100).toBeCloseTo((before.x - 100) * 2);
+    expect(after.y - 80).toBeCloseTo((before.y - 80) * 2);
+    expect(zoomView(v, 100, 0, 0).s).toBe(S_MAX);
+    expect(zoomView(v, 0.01, 0, 0).s).toBe(S_MIN);
+  });
+
+  it('opens drawings saved with the old grid size', () => {
+    const old = { ...newDoc('a4q', 'points', 'Alt'), view: undefined, gridSize: 2 } as unknown as Parameters<typeof toFile>[0];
+    expect(fromFile(toFile(old))!.view.s).toBe(27);
   });
 });

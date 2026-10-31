@@ -6,8 +6,8 @@ Rauten und Dreiecken.
 
 ## Bedienung
 
-- **Galerie:** alle Bilder im Browser, neues Bild (A4 quer, A4 hoch, Quadrat; Raster fein/mittel/grob;
-  Punkte oder Dreiecke), Bild aus Datei öffnen.
+- **Galerie:** alle Bilder im Browser, neues Bild (A4 quer, A4 hoch, Quadrat; Punkte oder Dreiecke),
+  Bild aus Datei öffnen.
 - **Würfelplättchen:** das zentrale Bauteil. Drei Rauten, automatisch hell, mittel und dunkel schattiert.
   Ein zweiter Druck auf den Würfel-Knopf dreht das Plättchen um 60° (liegende Raute oben oder unten). Ein ausgewähltes Plättchen zeigt unter der
   Zeichenfläche seine drei Seiten; jede lässt sich einzeln umfärben. Plättchen werden nicht wieder zerlegt.
@@ -23,7 +23,9 @@ Rauten und Dreiecken.
 - **Auswählen:** antippen oder Rahmen aufziehen; verschieben, kopieren, um 60° drehen, nach vorne,
   nach hinten, löschen, umfärben.
 - **Farben:** Kinderfarben für Füllung und Rand, eigene Farbe über ein Farbrad, kein Rand, drei Linienstärken.
-- **Zoom:** zwei Finger, Mausrad oder die Knöpfe +, −, ganzes Blatt.
+- **Zoom:** Das Blatt bleibt gleich groß; gezoomt werden Raster und Zeichnung darin. Herauszoomen zeigt
+  mehr Rasterpunkte. Zwei Finger zoomen und verschieben, ebenso Mausrad/Trackpad und die Knöpfe
+  +, − und Zurücksetzen. Export und Druck zeigen genau den sichtbaren Ausschnitt.
 - **Rückgängig/Wiederholen**, auch mit Strg+Z / Strg+Umschalt+Z.
 - **Speichern und Teilen:** automatisch in der Galerie; als PNG, drucken bzw. PDF, als Datei (`.wuerfel.json`).
 

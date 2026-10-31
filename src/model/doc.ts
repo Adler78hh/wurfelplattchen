@@ -13,30 +13,36 @@ export const FORMATS: Record<FormatId, { label: string; w: number; h: number }> 
   square: { label: 'Quadrat', w: 210, h: 210 },
 };
 
-/** Edge length of a triangle in mm. */
-export const GRID_SIZES = [
-  { label: 'Fein', s: 13 },
-  { label: 'Mittel', s: 19 },
-  { label: 'Grob', s: 27 },
-];
+/** Edge length of a triangle in mm: start value and zoom limits. */
+export const S_DEFAULT = 19;
+export const S_MIN = 6;
+export const S_MAX = 70;
 
 export interface Doc {
   id: string;
   name: string;
   format: FormatId;
-  gridSize: number; // index into GRID_SIZES
+  /** Where the lattice lies on the sheet: triangle size and origin, in mm. Zooming changes it. */
+  view: Grid;
   gridStyle: GridStyle;
   gridVisible: boolean;
   shapes: Shape[];
   updated: number;
 }
 
-export function newDoc(format: FormatId, gridSize: number, gridStyle: GridStyle, name: string): Doc {
+/** Lattice of size s centred on the sheet. */
+export function centredView(format: FormatId, s = S_DEFAULT): Grid {
+  const { w, h } = FORMATS[format];
+  const di = (s * SQ3) / 2;
+  return { s, ox: (w % di) / 2, oy: (h % s) / 2 };
+}
+
+export function newDoc(format: FormatId, gridStyle: GridStyle, name: string): Doc {
   return {
     id: 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     name,
     format,
-    gridSize,
+    view: centredView(format),
     gridStyle,
     gridVisible: true,
     shapes: [],
@@ -46,12 +52,24 @@ export function newDoc(format: FormatId, gridSize: number, gridStyle: GridStyle,
 
 export const sheetOf = (d: Pick<Doc, 'format'>) => FORMATS[d.format];
 
-/** The lattice is centred on the sheet. */
-export function gridOf(d: Pick<Doc, 'format' | 'gridSize'>): Grid {
-  const { w, h } = sheetOf(d);
-  const s = GRID_SIZES[d.gridSize]?.s ?? GRID_SIZES[1].s;
-  const di = (s * SQ3) / 2;
-  return { s, ox: (w % di) / 2, oy: (h % s) / 2 };
+export const gridOf = (d: Pick<Doc, 'view'>): Grid => d.view;
+
+/** Zoom the drawing by factor f around sheet point (cx, cy), within the limits. */
+export function zoomView(v: Grid, f: number, cx: number, cy: number): Grid {
+  const s = Math.max(S_MIN, Math.min(S_MAX, v.s * f));
+  const k = s / v.s;
+  return { s, ox: cx - (cx - v.ox) * k, oy: cy - (cy - v.oy) * k };
+}
+
+const isNum = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+const OLD_SIZES = [13, 19, 27];
+
+/** Accept drawings saved before zooming existed (they had a grid size index). */
+function viewOf(d: { format: FormatId; view?: unknown; gridSize?: unknown }): Grid {
+  const v = d.view as Grid | undefined;
+  if (v && isNum(v.s) && isNum(v.ox) && isNum(v.oy) && v.s >= S_MIN && v.s <= S_MAX) return { s: v.s, ox: v.ox, oy: v.oy };
+  const i = typeof d.gridSize === 'number' ? d.gridSize : 1;
+  return centredView(d.format, OLD_SIZES[i] ?? S_DEFAULT);
 }
 
 // ------------------------------------------------------------ gallery storage
@@ -72,7 +90,8 @@ export function listDocs(): Doc[] {
   const ids = read<string[]>(INDEX) ?? [];
   return ids
     .map((id) => read<Doc>(DOC(id)))
-    .filter((d): d is Doc => !!d)
+    .filter((d): d is Doc => !!d && d.format in FORMATS)
+    .map((d) => ({ ...d, view: viewOf(d) }))
     .sort((a, b) => b.updated - a.updated);
 }
 
@@ -136,7 +155,8 @@ export function fromFile(text: string): Doc | null {
     if (data?.app !== FILE_TAG || !d || !(d.format in FORMATS)) return null;
     if (!Array.isArray(d.shapes) || !d.shapes.every(validShape)) return null;
     return {
-      ...newDoc(d.format, isInt(d.gridSize) ? Math.min(2, Math.max(0, d.gridSize)) : 1, d.gridStyle === 'lines' ? 'lines' : 'points', String(d.name || 'Bild')),
+      ...newDoc(d.format, d.gridStyle === 'lines' ? 'lines' : 'points', String(d.name || 'Bild')),
+      view: viewOf(d),
       gridVisible: d.gridVisible !== false,
       shapes: d.shapes,
     };

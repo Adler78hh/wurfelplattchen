@@ -1,18 +1,8 @@
-// The zoomable sheet. One finger or the pen draws, two fingers zoom and move the sheet.
+// The sheet always fills the available space. One finger or the pen draws; two fingers
+// zoom and move the drawing *inside* the sheet (reported to the parent in millimetres).
 
-import { type ReactNode, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import type { Pt } from '../geo/lattice';
-
-export interface View {
-  scale: number; // screen px per mm
-  tx: number;
-  ty: number;
-}
-
-export interface StageHandle {
-  fit(): void;
-  zoomBy(f: number): void;
-}
 
 interface Props {
   w: number;
@@ -24,101 +14,78 @@ interface Props {
   onUp(p: Pt): void;
   onCancel(): void;
   onHover?(p: Pt | null): void;
+  /** Zoom the drawing by factor f around sheet point c. */
+  onZoom(f: number, c: Pt): void;
+  /** Move the drawing by (dx, dy) mm. */
+  onPan(dx: number, dy: number): void;
   children: ReactNode;
-  ref?: React.Ref<StageHandle>;
 }
 
-const MIN = 0.3;
-const MAX = 40;
+interface Fit {
+  scale: number;
+  tx: number;
+  ty: number;
+}
 
-export function Stage({ w, h, onScale, onDown, onMove, onUp, onCancel, onHover, children, ref }: Props) {
+export function Stage({ w, h, onScale, onDown, onMove, onUp, onCancel, onHover, onZoom, onPan, children }: Props) {
   const box = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<View>({ scale: 1, tx: 0, ty: 0 });
-  const viewRef = useRef(view);
-  viewRef.current = view;
+  const [fit, setFit] = useState<Fit>({ scale: 1, tx: 0, ty: 0 });
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const drawing = useRef<number | null>(null);
-  const pinch = useRef<{ d: number; mx: number; my: number; view: View } | null>(null);
+  const pinch = useRef<{ d: number; mx: number; my: number } | null>(null);
+  const cb = useRef({ onZoom, onPan });
+  cb.current = { onZoom, onPan };
 
-  const fit = useCallback(() => {
+  // Fit the sheet into the box, now and whenever the box changes size.
+  useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
-    const pad = 20;
-    const scale = Math.max(MIN, Math.min((r.width - 2 * pad) / w, (r.height - 2 * pad) / h));
-    setView({ scale, tx: (r.width - w * scale) / 2, ty: (r.height - h * scale) / 2 });
-  }, [w, h]);
-
-  const zoomAt = useCallback((f: number, cx: number, cy: number) => {
-    setView((v) => {
-      const scale = Math.max(MIN, Math.min(MAX, v.scale * f));
-      const k = scale / v.scale;
-      return { scale, tx: cx - (cx - v.tx) * k, ty: cy - (cy - v.ty) * k };
-    });
-  }, []);
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      fit,
-      zoomBy(f: number) {
-        const r = box.current!.getBoundingClientRect();
-        zoomAt(f, r.width / 2, r.height / 2);
-      },
-    }),
-    [fit, zoomAt],
-  );
-
-  // Fit on start and whenever the available space changes size noticeably.
-  useEffect(() => {
-    fit();
-    const el = box.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    let last = el.getBoundingClientRect();
-    const ro = new ResizeObserver(() => {
+    const update = () => {
       const r = el.getBoundingClientRect();
-      if (Math.abs(r.width - last.width) > 40 || Math.abs(r.height - last.height) > 40) fit();
-      last = r;
-    });
+      const pad = 16;
+      const scale = Math.max(0.1, Math.min((r.width - 2 * pad) / w, (r.height - 2 * pad) / h));
+      setFit({ scale, tx: (r.width - w * scale) / 2, ty: (r.height - h * scale) / 2 });
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', update);
+      return () => window.removeEventListener('resize', update);
+    }
+    const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [fit]);
+  }, [w, h]);
 
-  useEffect(() => onScale?.(view.scale), [view.scale, onScale]);
+  useEffect(() => onScale?.(fit.scale), [fit.scale, onScale]);
 
-  // Mouse wheel / trackpad zoom (must not be passive).
+  const toSheet = (cx: number, cy: number): Pt => {
+    const r = box.current!.getBoundingClientRect();
+    const f = fitRef.current;
+    return { x: (cx - r.left - f.tx) / f.scale, y: (cy - r.top - f.ty) / f.scale };
+  };
+
+  // Mouse wheel / trackpad: pinch (ctrlKey) and wheels zoom, two-finger scrolling moves.
   useEffect(() => {
     const el = box.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const r = el.getBoundingClientRect();
-      // Trackpad pinch (ctrlKey) and plain mouse wheels zoom; two-finger trackpad scrolling moves.
+      const s = fitRef.current.scale;
       if (e.ctrlKey || e.metaKey || e.deltaMode !== 0 || e.deltaX === 0) {
-        zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
-        return;
+        cb.current.onZoom(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), toSheet(e.clientX, e.clientY));
+      } else {
+        cb.current.onPan(-e.deltaX / s, -e.deltaY / s);
       }
-      setView((v) => ({ ...v, tx: v.tx - e.deltaX, ty: v.ty - e.deltaY }));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [zoomAt]);
-
-  const toSheet = (cx: number, cy: number): Pt => {
-    const r = box.current!.getBoundingClientRect();
-    const v = viewRef.current;
-    return { x: (cx - r.left - v.tx) / v.scale, y: (cy - r.top - v.ty) / v.scale };
-  };
+  }, []);
 
   const startPinch = () => {
     const [a, b] = [...pointers.current.values()];
-    const r = box.current!.getBoundingClientRect();
-    pinch.current = {
-      d: Math.hypot(a.x - b.x, a.y - b.y) || 1,
-      mx: (a.x + b.x) / 2 - r.left,
-      my: (a.y + b.y) / 2 - r.top,
-      view: viewRef.current,
-    };
+    pinch.current = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
   };
 
   const down = (e: React.PointerEvent) => {
@@ -146,14 +113,15 @@ export function Stage({ w, h, onScale, onDown, onMove, onUp, onCancel, onHover, 
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch.current && pointers.current.size >= 2) {
       const [a, b] = [...pointers.current.values()];
-      const r = box.current!.getBoundingClientRect();
       const p = pinch.current;
       const d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
-      const mx = (a.x + b.x) / 2 - r.left;
-      const my = (a.y + b.y) / 2 - r.top;
-      const scale = Math.max(MIN, Math.min(MAX, (p.view.scale * d) / p.d));
-      const k = scale / p.view.scale;
-      setView({ scale, tx: mx - (p.mx - p.view.tx) * k, ty: my - (p.my - p.view.ty) * k });
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      const s = fitRef.current.scale;
+      // Move first, then zoom around the new finger centre.
+      if (mx !== p.mx || my !== p.my) cb.current.onPan((mx - p.mx) / s, (my - p.my) / s);
+      if (d !== p.d) cb.current.onZoom(d / p.d, toSheet(mx, my));
+      pinch.current = { d, mx, my };
     } else if (drawing.current === e.pointerId) {
       onMove(toSheet(e.clientX, e.clientY));
     }
@@ -182,7 +150,7 @@ export function Stage({ w, h, onScale, onDown, onMove, onUp, onCancel, onHover, 
       onPointerLeave={(e) => e.pointerType !== 'touch' && !pointers.current.size && onHover?.(null)}
     >
       <svg className="stage-svg">
-        <g transform={`translate(${view.tx} ${view.ty}) scale(${view.scale})`}>
+        <g transform={`translate(${fit.tx} ${fit.ty}) scale(${fit.scale})`}>
           <rect className="sheet-shadow" x={0.8} y={1.4} width={w} height={h} rx={1.5} />
           <rect className="sheet" width={w} height={h} rx={1.5} />
           {children}

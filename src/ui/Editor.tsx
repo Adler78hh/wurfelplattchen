@@ -35,12 +35,12 @@ import {
   sameCell,
   translate,
 } from '../geo/shapes';
-import { type Doc, GRID_SIZES, gridOf, saveDoc, sheetOf } from '../model/doc';
+import { type Doc, centredView, gridOf, saveDoc, sheetOf, zoomView } from '../model/doc';
 import { ColorWheel } from './ColorWheel';
 import { exportPng, printDoc, saveFile } from './exporting';
 import * as I from './icons';
 import { GRID_DOT, GRID_LINE, gridSegments, pathD, strokeWidth } from './render';
-import { Stage, type StageHandle } from './Stage';
+import { Stage } from './Stage';
 
 type Tool = 'select' | 'cube' | 'rhomb' | 'triangle' | 'hexagon' | 'pen' | 'paint' | 'erase' | 'pick';
 const SHAPE_TOOLS: Tool[] = ['cube', 'rhomb', 'triangle', 'hexagon'];
@@ -91,7 +91,6 @@ export function Editor({ initial, onExit }: Props) {
   const [rect, setRect] = useState<{ a: Pt; b: Pt } | null>(null);
   const drag = useRef<Drag | null>(null);
   const scale = useRef(1);
-  const stage = useRef<StageHandle>(null);
 
   const g = gridOf(doc);
   const { w, h } = sheetOf(doc);
@@ -463,6 +462,13 @@ export function Editor({ initial, onExit }: Props) {
     return () => window.removeEventListener('keydown', f);
   }, []);
 
+  // Zooming and moving change only where the lattice lies on the sheet; the sheet stays put.
+  const zoom = (f: number, c: Pt) => setDocProps({ view: zoomView(docRef.current.view, f, c.x, c.y) });
+  const pan = (dx: number, dy: number) => {
+    const v = docRef.current.view;
+    setDocProps({ view: { ...v, ox: v.ox + dx, oy: v.oy + dy } });
+  };
+
   const onScale = useCallback((s: number) => {
     scale.current = s;
   }, []);
@@ -481,7 +487,7 @@ export function Editor({ initial, onExit }: Props) {
       const q = toXY(g, p);
       return <circle key={key(p)} cx={q.x} cy={q.y} r={g.s * 0.05} fill={GRID_DOT} />;
     });
-  }, [doc.gridVisible, doc.gridStyle, doc.gridSize, doc.format]);
+  }, [doc.gridVisible, doc.gridStyle, doc.view, doc.format]);
 
   const drawShape = (s: Shape, extra?: Partial<React.SVGProps<SVGPathElement>>) => {
     const sw = strokeWidth(g, s.width);
@@ -564,14 +570,6 @@ export function Editor({ initial, onExit }: Props) {
                   <I.GridIcon style="off" /> Aus
                 </button>
               </div>
-              <div className="menu-label">Größe</div>
-              <div className="seg">
-                {GRID_SIZES.map((s, i) => (
-                  <button key={s.label} className={doc.gridSize === i ? 'on' : ''} onClick={() => setDocProps({ gridSize: i })}>
-                    {s.label}
-                  </button>
-                ))}
-              </div>
             </div>
           )}
         </div>
@@ -612,7 +610,7 @@ export function Editor({ initial, onExit }: Props) {
 
       <main className="work">
         <div className="stage-wrap">
-          <Stage ref={stage} w={w} h={h} onScale={onScale} onDown={onDown} onMove={onMove} onUp={onUp} onCancel={onCancel} onHover={onHover}>
+          <Stage w={w} h={h} onScale={onScale} onDown={onDown} onMove={onMove} onUp={onUp} onCancel={onCancel} onHover={onHover} onZoom={zoom} onPan={pan}>
             <defs>
               <clipPath id="sheet-clip">
                 <rect width={w} height={h} rx={1.5} />
@@ -652,13 +650,13 @@ export function Editor({ initial, onExit }: Props) {
             )}
           </Stage>
           <div className="zoom">
-            <button className="round small" onClick={() => stage.current?.zoomBy(1.3)} aria-label="Vergrößern">
+            <button className="round small" onClick={() => zoom(1.3, { x: w / 2, y: h / 2 })} aria-label="Hineinzoomen" title="Hineinzoomen">
               <I.PlusIcon />
             </button>
-            <button className="round small" onClick={() => stage.current?.zoomBy(1 / 1.3)} aria-label="Verkleinern">
+            <button className="round small" onClick={() => zoom(1 / 1.3, { x: w / 2, y: h / 2 })} aria-label="Herauszoomen" title="Herauszoomen">
               <I.MinusIcon />
             </button>
-            <button className="round small" onClick={() => stage.current?.fit()} aria-label="Ganzes Blatt">
+            <button className="round small" onClick={() => setDocProps({ view: centredView(doc.format) })} aria-label="Zoom zurücksetzen" title="Zoom zurücksetzen">
               <I.FitIcon />
             </button>
           </div>

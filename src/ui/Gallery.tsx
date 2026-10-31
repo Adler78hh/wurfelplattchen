@@ -1,7 +1,7 @@
 // Start screen: all drawings in this browser, a new drawing, or a drawing from a file.
 
 import { useMemo, useState } from 'react';
-import { type Doc, FORMATS, type FormatId, GRID_SIZES, type GridStyle, deleteDoc, fromFile, listDocs, newDoc, saveDoc } from '../model/doc';
+import { type Doc, FORMATS, type FormatId, type GridStyle, deleteDoc, fromFile, listDocs, newDoc, saveDoc } from '../model/doc';
 import { openFile } from './exporting';
 import * as I from './icons';
 import { docSvg } from './render';
@@ -101,7 +101,6 @@ function FormatIcon({ id }: { id: FormatId }) {
 
 function NewDialog({ count, onCreate, onCancel }: { count: number; onCreate(d: Doc): void; onCancel?: () => void }) {
   const [format, setFormat] = useState<FormatId>('a4q');
-  const [size, setSize] = useState(1);
   const [style, setStyle] = useState<GridStyle>('points');
   return (
     <div className="modal-back">
@@ -117,23 +116,6 @@ function NewDialog({ count, onCreate, onCancel }: { count: number; onCreate(d: D
           ))}
         </div>
         <div className="menu-label">Raster</div>
-        <div className="choices">
-          {GRID_SIZES.map((s, i) => (
-            <button key={s.label} className={'choice' + (size === i ? ' on' : '')} onClick={() => setSize(i)}>
-              <svg viewBox="0 0 40 40" width="48" height="48" aria-hidden="true">
-                {Array.from({ length: 5 }, (_, a) =>
-                  Array.from({ length: 5 }, (_, b) => {
-                    const step = [6, 9, 13][i];
-                    const x = 20 + (a - 2) * step * 0.866;
-                    const y = 20 + (b - 2) * step + ((a % 2) * step) / 2;
-                    return x > 2 && x < 38 && y > 2 && y < 38 ? <circle key={a + '-' + b} cx={x} cy={y} r="1.8" fill="currentColor" /> : null;
-                  }),
-                )}
-              </svg>
-              {s.label}
-            </button>
-          ))}
-        </div>
         <div className="choices">
           <button className={'choice' + (style === 'points' ? ' on' : '')} onClick={() => setStyle('points')}>
             <I.GridIcon style="points" />
@@ -151,7 +133,7 @@ function NewDialog({ count, onCreate, onCancel }: { count: number; onCreate(d: D
               <I.CloseIcon />
             </button>
           )}
-          <button className="pill ok" onClick={() => onCreate(newDoc(format, size, style, `Bild ${count + 1}`))}>
+          <button className="pill ok" onClick={() => onCreate(newDoc(format, style, `Bild ${count + 1}`))}>
             <I.CheckIcon /> Los geht’s
           </button>
         </div>
