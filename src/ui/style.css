@@ -497,6 +497,95 @@ button:disabled {
   }
 }
 
+/* ------------------------------------------------------------ 3D */
+
+.pill.three-d {
+  background: var(--petrol);
+  border-color: var(--petrol);
+  color: #fff;
+  padding-right: 18px;
+}
+
+.pill.on {
+  background: #ff6a3d;
+  border-color: #ff6a3d;
+  color: #fff;
+}
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--karo) 1px, transparent 1px), linear-gradient(90deg, var(--karo) 1px, transparent 1px);
+  background-size: 22px 22px;
+  display: flex;
+  flex-direction: column;
+}
+
+.view3d {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.title.static {
+  cursor: default;
+}
+
+.view3d-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 12px 12px;
+  margin-bottom: max(12px, env(safe-area-inset-bottom));
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 1px 6px rgba(40, 90, 95, 0.16);
+  overflow: hidden;
+}
+
+.view3d-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  touch-action: none;
+}
+
+.view3d-canvas canvas {
+  display: block;
+  touch-action: none;
+}
+
+.view3d-msg {
+  position: absolute;
+  top: 40%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 0 24px;
+}
+
+.view3d-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+
 /* ------------------------------------------------------------ modals */
 
 .modal-back {

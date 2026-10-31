@@ -149,6 +149,24 @@ export const SplitIcon = () => {
   );
 };
 
+/** Magic wand with sparkles: "the trick" of impossible figures. */
+export const MagicIcon = () => (
+  <Icon>
+    <path d="M4 20L15 9" strokeWidth="2.4" />
+    <path d="M17 3v3M15.5 4.5h3M20 9v2M19 10h2M11 4v2M10 5h2" strokeWidth="1.6" />
+  </Icon>
+);
+
+/** "3D" in a cube outline. */
+export const ThreeDIcon = () => (
+  <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+    <path d="M12 2.5l8.5 4.9v9.2L12 21.5l-8.5-4.9V7.4z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    <text x="12" y="15.6" textAnchor="middle" fontSize="8.5" fontWeight="800" fill="currentColor" fontFamily="system-ui, sans-serif">
+      3D
+    </text>
+  </svg>
+);
+
 export const RotateIcon = () => (
   <Icon>
     <path d="M20 12a8 8 0 1 1-2.4-5.7" />

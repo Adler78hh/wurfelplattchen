@@ -1,6 +1,6 @@
 // The drawing screen: sheet, tools, colours, selection and history.
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FILLS, STROKES, WIDTHS } from '../geo/color';
 import {
   type LP,
@@ -43,6 +43,8 @@ import * as I from './icons';
 import { GRID_DOT, GRID_LINE, gridSegments, pathD, strokeWidth } from './render';
 import { Stage } from './Stage';
 
+const View3D = lazy(() => import('./View3D'));
+
 type Tool = 'select' | 'cube' | 'rhomb' | 'triangle' | 'hexagon' | 'pen' | 'paint' | 'erase' | 'pick';
 const SHAPE_TOOLS: Tool[] = ['cube', 'rhomb', 'triangle', 'hexagon'];
 
@@ -82,6 +84,7 @@ export function Editor({ initial, onExit }: Props) {
   const [customStroke, setCustomStroke] = useState<string | null>(null);
   const [wheel, setWheel] = useState<null | 'fill' | 'stroke'>(null);
   const [menu, setMenu] = useState<null | 'grid' | 'export'>(null);
+  const [show3d, setShow3d] = useState(false);
 
   const [selection, setSelection] = useState<string[]>([]);
   const [faceSel, setFaceSel] = useState<number | null>(null);
@@ -448,7 +451,7 @@ export function Editor({ initial, onExit }: Props) {
 
   const keys = useRef<(e: KeyboardEvent) => void>(() => {});
   keys.current = (e: KeyboardEvent) => {
-    if (wheel) return;
+    if (wheel || show3d) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'z') {
       e.preventDefault();
@@ -557,6 +560,17 @@ export function Editor({ initial, onExit }: Props) {
           {doc.name}
         </button>
         <span className="grow" />
+        <button
+          className="pill three-d"
+          onClick={() => {
+            finishPen();
+            setMenu(null);
+            setShow3d(true);
+          }}
+          title="3D-Ansicht"
+        >
+          <I.ThreeDIcon /> 3D
+        </button>
         <button className="round" onClick={undo} disabled={!hist.current.past.length} aria-label="Rückgängig" title="Rückgängig">
           <I.UndoIcon />
         </button>
@@ -773,6 +787,14 @@ export function Editor({ initial, onExit }: Props) {
           </div>
         </aside>
       </main>
+
+      {show3d && (
+        <div className="overlay">
+          <Suspense fallback={<p className="view3d-msg">3D wird geladen …</p>}>
+            <View3D name={doc.name} shapes={doc.shapes} onClose={() => setShow3d(false)} />
+          </Suspense>
+        </div>
+      )}
 
       {wheel && (
         <ColorWheel
