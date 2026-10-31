@@ -569,12 +569,12 @@ export function Editor({ initial, onExit }: Props) {
           }}
           title="3D-Ansicht"
         >
-          <I.ThreeDIcon /> 3D
+          <I.ThreeDIcon /> <span className="lbl">3D</span>
         </button>
-        <button className="round" onClick={undo} disabled={!hist.current.past.length} aria-label="Rückgängig" title="Rückgängig">
+        <button className="round top-history" onClick={undo} disabled={!hist.current.past.length} aria-label="Rückgängig" title="Rückgängig">
           <I.UndoIcon />
         </button>
-        <button className="round" onClick={redo} disabled={!hist.current.future.length} aria-label="Wiederholen" title="Wiederholen">
+        <button className="round top-history" onClick={redo} disabled={!hist.current.future.length} aria-label="Wiederholen" title="Wiederholen">
           <I.RedoIcon />
         </button>
         <div className="menu-anchor">
@@ -795,7 +795,12 @@ export function Editor({ initial, onExit }: Props) {
       {show3d && (
         <div className="overlay">
           <Suspense fallback={<p className="view3d-msg">3D wird geladen …</p>}>
-            <View3D name={doc.name} shapes={doc.shapes} onClose={() => setShow3d(false)} />
+            <View3D
+              name={doc.name}
+              shapes={doc.shapes}
+              onClose={() => setShow3d(false)}
+              onFlip={(id, plane) => commit(docRef.current.shapes.map((s) => (s.id === id ? { ...s, plane } : s)))}
+            />
           </Suspense>
         </div>
       )}

@@ -19,17 +19,37 @@ interface Props {
   name: string;
   shapes: Shape[];
   onClose(): void;
+  /** A hand-drawn shape was tapped: turn it into its next plane. */
+  onFlip(id: string, plane: 0 | 1 | 2): void;
 }
 
-export default function View3D({ name, shapes, onClose }: Props) {
+interface Ctx {
+  renderer: THREE.WebGLRenderer;
+  scene: THREE.Scene;
+  camera: THREE.OrthographicCamera;
+  controls: OrbitControls;
+  content: THREE.Group | null;
+  marks: ((on: boolean) => void) | null;
+  centre: THREE.Vector3;
+  turnTo(dir: THREE.Vector3, dur?: number, zoom?: number, target?: THREE.Vector3): void;
+}
+
+export default function View3D({ name, shapes, onClose, onFlip }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const model = useMemo(() => buildModel(shapes), [shapes]);
   const [mark, setMark] = useState(false);
   const [failed, setFailed] = useState(false);
-  const api = useRef<{ iso(): void; save(): void; setMark(on: boolean): void } | null>(null);
+  const ctx = useRef<Ctx | null>(null);
+  const markRef = useRef(mark);
+  markRef.current = mark;
+  const flipRef = useRef(onFlip);
+  flipRef.current = onFlip;
+  const flipPlanes = useRef(new Map<string, 0 | 1 | 2>());
   const impossibleCount = model.cubes.filter((c) => c.impossible).length + model.walls.filter((w) => w.impossible).length;
+  const canFlip = model.walls.some((w) => w.flippable);
   const empty = !model.cubes.length && !model.walls.length;
 
+  // Renderer, camera and controls live as long as the view is open.
   useEffect(() => {
     const el = host.current;
     if (!el || empty) return;
@@ -46,6 +66,7 @@ export default function View3D({ name, shapes, onClose }: Props) {
 
     const scene = new THREE.Scene();
     const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -1000, 1000);
+    camera.up.set(0, 1, 0);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.12;
@@ -53,62 +74,50 @@ export default function View3D({ name, shapes, onClose }: Props) {
     controls.minZoom = 0.2;
     controls.maxZoom = 8;
 
-    const { group, marks } = buildScene(model);
-    scene.add(group);
-
-    // Frame the model: centre and size.
-    const b = bounds(model)!;
-    const centre = toThree([(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2]);
-    const radius = Math.max(1.5, toThree([b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]]).length() / 2);
-
-    // Soft ground grid under everything.
-    const size = Math.ceil(radius * 1.6) * 2 + 4;
-    const ground = new THREE.GridHelper(size, size, 0xbcdcde, 0xd8ecec);
-    ground.position.set(Math.round(centre.x), b.min[2] - 0.001, Math.round(centre.z));
-    scene.add(ground);
-
-    let view = { w: 1, h: 1 };
     const resize = () => {
       const r = el.getBoundingClientRect();
-      view = { w: Math.max(1, r.width), h: Math.max(1, r.height) };
-      renderer.setSize(view.w, view.h);
-      const aspect = view.w / view.h;
-      const half = radius * 0.8;
+      renderer.setSize(Math.max(1, r.width), Math.max(1, r.height));
+      const aspect = Math.max(1, r.width) / Math.max(1, r.height);
+      const half = (camera.userData.radius ?? 3) * 0.8;
       camera.left = -half * Math.max(1, aspect);
       camera.right = half * Math.max(1, aspect);
       camera.top = half / Math.min(1, aspect);
       camera.bottom = -half / Math.min(1, aspect);
       camera.updateProjectionMatrix();
     };
-    resize();
+    camera.userData.resize = resize;
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null;
     ro?.observe(el);
 
-    controls.target.copy(centre);
-    camera.position.copy(centre).addScaledVector(ISO_DIR, radius * 6);
-    camera.up.set(0, 1, 0);
-    camera.lookAt(centre);
-    controls.update();
-
     // Smoothly turn the camera to a direction (and zoom/target).
     let anim: { from: THREE.Spherical; to: THREE.Spherical; z0: number; z1: number; t0: THREE.Vector3; t1: THREE.Vector3; start: number; dur: number } | null = null;
-    const turnTo = (dir: THREE.Vector3, dur = 900, zoom = 1, target = centre) => {
-      const from = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
-      const to = new THREE.Spherical().setFromVector3(dir.clone().multiplyScalar(from.radius));
-      // Shortest way around.
-      while (to.theta - from.theta > Math.PI) to.theta -= 2 * Math.PI;
-      while (from.theta - to.theta > Math.PI) to.theta += 2 * Math.PI;
-      anim = { from, to, z0: camera.zoom, z1: zoom, t0: controls.target.clone(), t1: target.clone(), start: performance.now(), dur };
+    const c: Ctx = {
+      renderer,
+      scene,
+      camera,
+      controls,
+      content: null,
+      marks: null,
+      centre: new THREE.Vector3(),
+      turnTo(dir, dur = 900, zoom = 1, target = c.centre) {
+        const from = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+        const to = new THREE.Spherical().setFromVector3(dir.clone().multiplyScalar(from.radius));
+        // Shortest way around.
+        while (to.theta - from.theta > Math.PI) to.theta -= 2 * Math.PI;
+        while (from.theta - to.theta > Math.PI) to.theta += 2 * Math.PI;
+        anim = { from, to, z0: camera.zoom, z1: zoom, t0: controls.target.clone(), t1: target.clone(), start: performance.now(), dur };
+      },
     };
+    ctx.current = c;
 
     let raf = 0;
     const loop = (now: number) => {
       if (anim) {
         const k = Math.min(1, (now - anim.start) / anim.dur);
         const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-        const s = new THREE.Spherical(anim.from.radius, anim.from.phi + (anim.to.phi - anim.from.phi) * e, anim.from.theta + (anim.to.theta - anim.from.theta) * e);
+        const sph = new THREE.Spherical(anim.from.radius, anim.from.phi + (anim.to.phi - anim.from.phi) * e, anim.from.theta + (anim.to.theta - anim.from.theta) * e);
         controls.target.lerpVectors(anim.t0, anim.t1, e);
-        camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(s));
+        camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
         camera.zoom = anim.z0 + (anim.z1 - anim.z0) * e;
         camera.updateProjectionMatrix();
         camera.lookAt(controls.target);
@@ -122,45 +131,100 @@ export default function View3D({ name, shapes, onClose }: Props) {
     raf = requestAnimationFrame(loop);
     controls.addEventListener('start', () => (anim = null));
 
-    // After opening: turn a little away from the drawing so you notice it is 3D.
-    const reveal = setTimeout(() => turnTo(new THREE.Vector3(1.9, 1.15, 0.55).normalize(), 1400), 500);
-
-    api.current = {
-      iso: () => turnTo(ISO_DIR, 900, 1, centre),
-      save: () => {
-        renderer.render(scene, camera);
-        renderer.domElement.toBlob((blob) => {
-          if (!blob) return;
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = (name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Bild') + ' 3D.png';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-        }, 'image/png');
-      },
-      setMark: (on) => marks(on),
+    // A short tap (not a turn) on a hand-drawn shape flips it into its next plane.
+    let down: { x: number; y: number; t: number } | null = null;
+    const onDown = (e: PointerEvent) => {
+      down = e.isPrimary ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
     };
+    const onUp = (e: PointerEvent) => {
+      if (!down || !c.content) return;
+      const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+      const quick = performance.now() - down.t < 450;
+      down = null;
+      if (moved > 8 || !quick) return;
+      const r = renderer.domElement.getBoundingClientRect();
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+      const hit = ray.intersectObjects(c.content.children, false).find((h) => h.object.userData.flipId || h.object.userData.solid);
+      const id = hit?.object.userData.flipId as string | undefined;
+      if (!id) return;
+      const plane = flipPlanes.current.get(id);
+      if (plane !== undefined) flipRef.current(id, ((plane + 1) % 3) as 0 | 1 | 2);
+    };
+    renderer.domElement.addEventListener('pointerdown', onDown);
+    renderer.domElement.addEventListener('pointerup', onUp);
+
+    // After opening: turn a little away from the drawing so you notice it is 3D.
+    const reveal = setTimeout(() => c.turnTo(new THREE.Vector3(1.9, 1.15, 0.55).normalize(), 1400), 500);
 
     return () => {
       clearTimeout(reveal);
       cancelAnimationFrame(raf);
       ro?.disconnect();
+      renderer.domElement.removeEventListener('pointerdown', onDown);
+      renderer.domElement.removeEventListener('pointerup', onUp);
       controls.dispose();
-      scene.traverse((o) => {
-        const m = o as THREE.Mesh;
-        m.geometry?.dispose?.();
-        const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
-        mats.forEach((x) => x.dispose());
-      });
+      disposeTree(scene);
       renderer.dispose();
       renderer.domElement.remove();
-      api.current = null;
+      ctx.current = null;
     };
-  }, [model, empty, name]);
+  }, [empty]);
 
-  useEffect(() => api.current?.setMark(mark), [mark]);
+  // (Re)build the bodies whenever the drawing changes – the camera stays where it is.
+  useEffect(() => {
+    const c = ctx.current;
+    if (!c) return;
+    const first = !c.content;
+    if (c.content) {
+      c.scene.remove(c.content);
+      disposeTree(c.content);
+    }
+    const { group, marks } = buildScene(model);
+    flipPlanes.current = new Map(model.walls.filter((w) => w.flippable && w.plane !== -1).map((w) => [w.id, w.plane as 0 | 1 | 2]));
+
+    // Soft ground grid under everything.
+    const b = bounds(model)!;
+    const centre = toThree([(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2]);
+    const radius = Math.max(1.5, toThree([b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]]).length() / 2);
+    const size = Math.ceil(radius * 1.6) * 2 + 4;
+    const ground = new THREE.GridHelper(size, size, 0xbcdcde, 0xd8ecec);
+    ground.position.set(Math.round(centre.x), b.min[2] - 0.001, Math.round(centre.z));
+    group.add(ground);
+
+    c.scene.add(group);
+    c.content = group;
+    c.marks = marks;
+    marks(markRef.current);
+    c.centre.copy(centre);
+    if (first) {
+      // Frame the model, looking along the direction of the drawing.
+      c.camera.userData.radius = radius;
+      c.camera.userData.resize();
+      c.controls.target.copy(centre);
+      c.camera.position.copy(centre).addScaledVector(ISO_DIR, radius * 6);
+      c.camera.lookAt(centre);
+      c.controls.update();
+    }
+  }, [model, failed]);
+
+  useEffect(() => ctx.current?.marks?.(mark), [mark]);
+
+  const save = () => {
+    const c = ctx.current;
+    if (!c) return;
+    c.renderer.render(c.scene, c.camera);
+    c.renderer.domElement.toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (name.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Bild') + ' 3D.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    }, 'image/png');
+  };
 
   return (
     <div className="view3d">
@@ -172,13 +236,20 @@ export default function View3D({ name, shapes, onClose }: Props) {
         <span className="grow" />
         {!empty && !failed && (
           <>
-            <button className="pill" onClick={() => api.current?.iso()} title="So drehen, wie es gezeichnet ist">
-              <I.CubeIcon /> Wie gezeichnet
+            <button className="pill" onClick={() => ctx.current?.turnTo(ISO_DIR)} aria-label="Wie gezeichnet" title="So drehen, wie es gezeichnet ist">
+              <I.CubeIcon /> <span className="lbl">Wie gezeichnet</span>
             </button>
-            <button className={'pill' + (mark ? ' on' : '')} onClick={() => setMark(!mark)} disabled={!impossibleCount} title="Unmögliche Teile hervorheben: lose Rauten und Würfel, die nicht zusammenpassen">
-              <I.MagicIcon /> Unmögliches{impossibleCount ? ` (${impossibleCount})` : ''}
+            <button
+              className={'pill' + (mark ? ' on' : '')}
+              onClick={() => setMark(!mark)}
+              disabled={!impossibleCount}
+              aria-label="Unmögliches"
+              title="Unmögliche Teile hervorheben: lose Rauten und Würfel, die nicht zusammenpassen"
+            >
+              <I.MagicIcon /> <span className="lbl">Unmögliches</span>
+              {impossibleCount ? ` (${impossibleCount})` : ''}
             </button>
-            <button className="round" onClick={() => api.current?.save()} aria-label="3D-Bild speichern" title="3D-Bild speichern">
+            <button className="round" onClick={save} aria-label="3D-Bild speichern" title="3D-Bild speichern">
               <I.ShareIcon />
             </button>
           </>
@@ -188,10 +259,23 @@ export default function View3D({ name, shapes, onClose }: Props) {
         <div className="view3d-canvas" ref={host} />
         {empty && <p className="view3d-msg">Hier ist noch nichts zu sehen. Setze Würfelplättchen, dann werden daraus Würfel.</p>}
         {failed && <p className="view3d-msg">Dieses Gerät kann leider keine 3D-Grafik anzeigen.</p>}
-        {!empty && !failed && <p className="view3d-hint">Ein Finger dreht · zwei Finger zoomen</p>}
+        {!empty && !failed && (
+          <p className="view3d-hint">
+            Ein Finger dreht · zwei Finger zoomen{canFlip ? ' · gezeichnete Fläche antippen: umklappen' : ''}
+          </p>
+        )}
       </div>
     </div>
   );
+}
+
+function disposeTree(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    m.geometry?.dispose?.();
+    const mats = Array.isArray(m.material) ? m.material : m.material ? [m.material] : [];
+    mats.forEach((x) => x.dispose());
+  });
 }
 
 // ------------------------------------------------------------ scene
@@ -210,6 +294,7 @@ function buildScene(model: Model) {
     // BoxGeometry face order: +x, −x, +y, −y, +z, −z  (three.js y = space Z, z = space Y).
     const mats = [c.colors.x, c.colors.x, c.colors.z, c.colors.z, c.colors.y, c.colors.y].map(basic);
     const mesh = new THREE.Mesh(box, mats);
+    mesh.userData.solid = true;
     const p = toThree([c.min[0] + 0.5, c.min[1] + 0.5, c.min[2] + 0.5]);
     mesh.position.copy(p);
     const edges = lineMat(c.stroke);
@@ -233,6 +318,8 @@ function buildScene(model: Model) {
         const cyl = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 8), mat);
         cyl.position.copy(a).addScaledVector(d, 0.5);
         cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+        cyl.userData.solid = true;
+        if (w.flippable) cyl.userData.flipId = w.id;
         group.add(cyl);
       }
       marked.push({ mats: [mat], edges: lineMat(null), stroke: new THREE.Color(0), impossible: false });
@@ -246,6 +333,8 @@ function buildScene(model: Model) {
       mat.opacity = 0;
     }
     const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData.solid = true;
+    if (w.flippable) mesh.userData.flipId = w.id;
     const edges = lineMat(w.stroke);
     const lines = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), edges);
     group.add(mesh, lines);

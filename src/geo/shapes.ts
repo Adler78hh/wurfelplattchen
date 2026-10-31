@@ -30,6 +30,11 @@ export interface Shape {
   stroke: string | null;
   /** Index into WIDTHS. */
   width: number;
+  /**
+   * Hand-drawn shapes only: their plane in 3D, chosen by the child (0 lying, 1 wall facing right,
+   * 2 wall facing left – like the three rhomb kinds). Missing: the app guesses.
+   */
+  plane?: 0 | 1 | 2;
 }
 
 let counter = 0;
@@ -52,7 +57,11 @@ export const mapShape = (s: Shape, f: (p: LP) => LP): Shape => ({
 
 export const translate = (s: Shape, d: LP): Shape => mapShape(s, (p) => add(p, d));
 
-export const rotate = (s: Shape, c: LP): Shape => mapShape(s, (p) => rot60(p, c));
+export const rotate = (s: Shape, c: LP): Shape => {
+  // A turned shape lies differently in space: let the app guess its plane again.
+  const { plane: _plane, ...rest } = mapShape(s, (p) => rot60(p, c));
+  return rest;
+};
 
 export function allPts(shapes: Shape[]): LP[] {
   return shapes.flatMap((s) => s.parts.flatMap((p) => p.pts));

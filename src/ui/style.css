@@ -378,6 +378,7 @@ button:disabled {
 }
 
 .row {
+  flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -858,5 +859,158 @@ button:disabled {
   }
   #print-root svg {
     display: block;
+  }
+}
+
+/* ------------------------------------------------------------ phones */
+
+@media (max-width: 600px) {
+  .topbar {
+    gap: 6px;
+    padding: 8px 8px 4px;
+    padding-top: max(8px, env(safe-area-inset-top));
+  }
+  .round {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+  }
+  .round.small {
+    width: 40px;
+    height: 40px;
+    border-radius: 13px;
+  }
+  .title {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+    font-size: 1.05rem;
+    padding: 6px 4px;
+  }
+  .topbar .grow {
+    display: none;
+  }
+  /* Undo lives in the tool row on phones. */
+  .top-history {
+    display: none;
+  }
+  .pill {
+    min-height: 44px;
+    padding: 4px 12px 4px 8px;
+  }
+  .pill.three-d {
+    padding-right: 12px;
+  }
+  .view3d .pill .lbl {
+    display: none;
+  }
+  .view3d .pill {
+    padding: 4px 10px;
+  }
+  .menu {
+    max-width: calc(100vw - 24px);
+  }
+  .work {
+    gap: 8px;
+    padding: 0 8px 8px;
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+  .zoom {
+    right: 6px;
+    bottom: 6px;
+    gap: 6px;
+  }
+  .panel {
+    padding: 0 10px 10px;
+    gap: 10px;
+    border-radius: 22px;
+  }
+  /* The tools stay on top and scroll sideways. */
+  .row.tools {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -10px;
+    padding: 10px 10px 8px;
+    background: var(--cream);
+    scrollbar-width: none;
+  }
+  .row.tools::-webkit-scrollbar {
+    display: none;
+  }
+  .row.tools .tool {
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+  }
+  .row.tools .sep {
+    flex: none;
+    width: 2px;
+  }
+  .swatch {
+    width: 38px;
+    height: 38px;
+  }
+  .swatch.ring {
+    border-width: 7px;
+  }
+  .width {
+    width: 44px;
+    height: 38px;
+  }
+  .face {
+    width: 52px;
+    height: 44px;
+  }
+  .hint {
+    font-size: 0.85rem;
+  }
+  .view3d-stage {
+    margin: 0 8px 8px;
+  }
+  .view3d-hint {
+    font-size: 0.8rem;
+    padding: 0 10px;
+  }
+  .gallery {
+    padding: 0 12px 32px;
+  }
+  .hero {
+    padding: 20px 0 12px;
+  }
+  .hero h1 {
+    font-size: 1.7rem;
+  }
+  .cards {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .card.new {
+    min-height: 150px;
+  }
+  .thumb-img {
+    height: 120px;
+  }
+  .modal {
+    padding: 16px;
+  }
+  .choice {
+    padding: 8px 4px;
+    font-size: 0.9rem;
+  }
+}
+
+/* Phones held sideways: little height, so the tools take a narrow column. */
+@media (max-height: 500px) and (min-aspect-ratio: 1/1) {
+  .panel {
+    width: 300px;
+  }
+  .topbar {
+    padding-top: 4px;
+    padding-bottom: 2px;
   }
 }

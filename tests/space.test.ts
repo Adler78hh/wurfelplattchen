@@ -63,11 +63,11 @@ describe('space', () => {
     for (let k = 0; k < 4; k++) expect(project(w.pts[k])).toEqual(rhombPts([6, 0], 0)[k]);
   });
 
-  it('other shapes become plates that look the same from the front', () => {
+  it('drawn shapes become walls that look the same from the front', () => {
     const tri: Shape = { id: newId(), kind: 'triangle', parts: [{ pts: [[0, 0], [1, 0], [0, 1]], fill: '#93cf7e' }], stroke: null, width: 1 };
     const m = buildModel([tri]);
     const w = m.walls[0];
-    expect(w.kind).toBe('plate');
+    expect(w.kind).toBe('face');
     w.pts.forEach((p, k) => {
       const [i, j] = project(p);
       expect(i).toBeCloseTo(tri.parts[0].pts[k][0]);
@@ -102,5 +102,55 @@ describe('loose rhombs', () => {
     const roof: Shape = { id: newId(), kind: 'rhomb', parts: [{ pts: [[2, 2], [1, 2], [2, 1], [3, 1]], fill: '#ffd166' }], stroke: null, width: 1 };
     const m = buildModel([base, roof]);
     expect(m.walls[0].pts.every((p) => p[2] === 1)).toBe(true);
+  });
+});
+
+describe('hand-drawn shapes', () => {
+  const tri = (pts: LP[], plane?: 0 | 1 | 2): Shape => ({ id: newId(), kind: 'triangle', parts: [{ pts, fill: '#4fbfb3' }], stroke: null, width: 1, plane });
+  const key3 = (p: number[]) => p.map((x) => x.toFixed(6)).join(',');
+
+  it('guesses the plane from the edges', async () => {
+    const { guessPlane } = await import('../src/geo/space');
+    // Edges along X and Y only → lying.
+    expect(guessPlane([[0, 0], [2, 0], [0, 2], [-2, 2]], true)).toBe(0);
+    // Vertical and Y edges → wall facing right (X = const).
+    expect(guessPlane([[0, 0], [0, 2], [-1, 3], [-1, 1]], true)).toBe(1);
+    // Vertical and X edges → wall facing left (Y = const).
+    expect(guessPlane([[0, 0], [0, 2], [1, 2], [1, 0]], true)).toBe(2);
+  });
+
+  it('attaches at the edge it shares with a cube, in every plane', () => {
+    const base = cube([3, 2]);
+    // Right edge of the cube: from R1 (4,1) down to R2 (4,2); a triangle sticking out to the right.
+    for (const plane of [0, 1, 2] as const) {
+      const t = tri([[4, 1], [4, 2], [5, 1]], plane);
+      const m = buildModel([base, t]);
+      const c = m.cubes[0].min;
+      const corners = new Set<string>();
+      for (const dx of [0, 1]) for (const dy of [0, 1]) for (const dz of [0, 1]) corners.add(key3([c[0] + dx, c[1] + dy, c[2] + dz]));
+      const w = m.walls[0];
+      // Standing walls share the whole edge with the cube; a lying triangle cannot hold a vertical
+      // edge, it hangs on at a corner.
+      expect(corners.has(key3(w.pts[0]))).toBe(true);
+      expect(corners.has(key3(w.pts[1]))).toBe(plane !== 0);
+      expect(w.plane).toBe(plane);
+      expect(w.flippable).toBe(true);
+      // Still looks as drawn.
+      w.pts.forEach((p, k) => {
+        const [i, j] = project(p);
+        expect(i).toBeCloseTo(t.parts[0].pts[k][0]);
+        expect(j).toBeCloseTo(t.parts[0].pts[k][1]);
+      });
+    }
+  });
+
+  it('lies flat in its plane', () => {
+    const m = buildModel([tri([[0, 0], [1, 0], [0, 1]], 1)]);
+    expect(new Set(m.walls[0].pts.map((p) => p[0].toFixed(6))).size).toBe(1);
+  });
+
+  it('guesses a standing wall when only that can hold the shared cube edge', () => {
+    const m = buildModel([cube([3, 2]), tri([[4, 1], [4, 2], [5, 1]])]);
+    expect(m.walls[0].plane).not.toBe(0);
   });
 });

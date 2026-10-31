@@ -40,6 +40,10 @@ export interface Wall3 {
   stroke: string | null;
   width: number;
   impossible: boolean;
+  /** Plane of a face wall: 0 lying, 1 facing right (X), 2 facing left (Y). */
+  plane: RhombType | -1;
+  /** Hand-drawn shape whose plane the child may change by tapping it in 3D. */
+  flippable: boolean;
 }
 
 export interface Model {
@@ -142,7 +146,9 @@ interface Piece {
   pts: LP[];
   delta: Map<string, number>;
   plate: Plate | null;
-  rhomb: RhombType | -1;
+  /** Plane of a face (rhomb or drawn shape), −1 for cubes. */
+  plane: RhombType | -1;
+  drawn: boolean;
 }
 
 // Z offset of the cube corner seen at hexagon corner R0 … R5 (up, up-right, down-right, down, down-left, up-left).
@@ -178,18 +184,72 @@ function pieceOf(s: Shape, order: number): Piece | null {
     const lid = s.parts.find((p) => rhombType(p.pts) === 0)!;
     const front = lid.pts.some((p) => same(sub(p, plate.c), [0, -1]));
     const delta = deltas(plate.c, pts, front ? 1 : 0);
-    return delta ? { shape: s, order, c: plate.c, pts, delta, plate, rhomb: -1 } : null;
+    return delta ? { shape: s, order, c: plate.c, pts, delta, plate, plane: -1, drawn: false } : null;
   }
-  if (s.kind !== 'rhomb') return null;
+  if (s.kind === 'cube') return null;
   const pts = s.parts[0].pts;
-  const t = rhombType(pts);
-  if (t === -1) return null;
+  const t = s.kind === 'rhomb' ? rhombType(pts) : -1;
+  if (t === -1) return drawnPiece(s, order);
   // The obtuse corner that is the front corner of its cube: lid → lower one, right face → left one,
   // left face → right one.
   const [a, b] = norm2(sub(pts[2], pts[0])) === 1 ? [pts[0], pts[2]] : [pts[1], pts[3]];
   const c = t === 0 ? (a[1] > b[1] ? a : b) : t === 1 ? (a[0] < b[0] ? a : b) : a[0] > b[0] ? a : b;
   const delta = deltas(c, pts, 1);
-  return delta ? { shape: s, order, c, pts, delta, plate: null, rhomb: t } : null;
+  return delta ? { shape: s, order, c, pts, delta, plate: null, plane: t, drawn: false } : null;
+}
+
+// Axis of a lattice step: X → (1, 0), Y → (−1, 1), Z → (0, −1) (and their multiples), else −1.
+function axisOf(v: LP): 0 | 1 | 2 | -1 {
+  if (v[1] === 0 && v[0] !== 0) return 0;
+  if (v[0] === -v[1] && v[0] !== 0) return 1;
+  if (v[0] === 0 && v[1] !== 0) return 2;
+  return -1;
+}
+// Axes lying in each plane: lying (Z = const) holds X and Y, facing right (X = const) Y and Z,
+// facing left (Y = const) X and Z.
+const PLANE_AXES: [number, number][] = [
+  [0, 1],
+  [1, 2],
+  [0, 2],
+];
+
+/** How well each plane fits a hand-drawn shape: total length of its edges that are cube edges there. */
+function planeScores(pts: LP[], closed: boolean): number[] {
+  const score = [0, 0, 0];
+  const n = closed ? pts.length : pts.length - 1;
+  for (let k = 0; k < n; k++) {
+    const v = sub(pts[(k + 1) % pts.length], pts[k]);
+    const ax = axisOf(v);
+    if (ax < 0) continue;
+    const len = Math.sqrt(norm2(v));
+    PLANE_AXES.forEach((axes, plane) => axes.includes(ax) && (score[plane] += len));
+  }
+  return score;
+}
+
+/** Best guess for the plane of a hand-drawn shape: the one in which most of its edges are cube edges. */
+export function guessPlane(pts: LP[], closed: boolean): RhombType {
+  const score = planeScores(pts, closed);
+  let best: RhombType = 0;
+  for (const p of [1, 2] as RhombType[]) if (score[p] > score[best] + 1e-9) best = p;
+  return best;
+}
+
+/**
+ * A hand-drawn shape lies flat in one of the three cube planes. Seen from the front it must look
+ * exactly as drawn, so each corner's height follows from the first corner's (delta) and the plane.
+ */
+function drawnPiece(s: Shape, order: number, guess?: RhombType): Piece | null {
+  const pts = s.parts[0].pts;
+  if (pts.length < 2) return null;
+  const plane = s.plane ?? guess ?? guessPlane(pts, s.kind !== 'line');
+  const o = pts[0];
+  const delta = new Map<string, number>();
+  for (const p of pts) {
+    const v = sub(p, o);
+    delta.set(key(p), plane === 0 ? 0 : plane === 1 ? -(v[0] + v[1]) : -v[1]);
+  }
+  return { shape: s, order, c: o, pts, delta, plate: null, plane, drawn: true };
 }
 
 interface Placed {
@@ -198,8 +258,48 @@ interface Placed {
   bad: Set<number>;
 }
 
+/** Shared corners of two pieces that can meet in space (all with the same depth step). */
+function fits(a: Piece, b: Piece): number {
+  const ws: number[] = [];
+  for (const [k, da] of a.delta) {
+    const db = b.delta.get(k);
+    if (db !== undefined) ws.push(da - db);
+  }
+  return ws.length >= 2 && ws.every((w) => w === ws[0]) ? ws.length : 0;
+}
+
+/**
+ * Pieces for all shapes. A hand-drawn shape without a chosen plane takes the best-fitting plane;
+ * when several fit equally well, the one in which it meets most cube and rhomb edges.
+ */
+function piecesOf(shapes: Shape[]): Piece[] {
+  const pieces = shapes.map((s, i) => pieceOf(s, i));
+  const fixed = pieces.filter((p): p is Piece => !!p && !p.drawn);
+  return pieces
+    .map((p, i) => {
+      const s = shapes[i];
+      if (!p || !p.drawn || s.plane !== undefined) return p;
+      const score = planeScores(p.pts, s.kind !== 'line');
+      const top = Math.max(...score);
+      const tied = ([0, 1, 2] as RhombType[]).filter((k) => score[k] > top - 1e-9);
+      if (tied.length < 2) return p;
+      let best = p;
+      let bestFit = -1;
+      for (const plane of tied) {
+        const cand = drawnPiece(s, i, plane)!;
+        const fit = fixed.reduce((sum, f) => sum + fits(cand, f), 0);
+        if (fit > bestFit) {
+          best = cand;
+          bestFit = fit;
+        }
+      }
+      return best;
+    })
+    .filter((p): p is Piece => !!p);
+}
+
 function placePieces(shapes: Shape[]): Placed {
-  const pieces = shapes.map((s, i) => pieceOf(s, i)).filter((p): p is Piece => !!p);
+  const pieces = piecesOf(shapes);
   const n = pieces.length;
   const edges: { a: number; b: number; w: number; strength: number }[] = [];
   for (let a = 0; a < n; a++)
@@ -213,27 +313,30 @@ function placePieces(shapes: Shape[]): Placed {
         if (d) edges.push({ a, b, w: d[2], strength: norm2(v) });
         continue;
       }
-      // With a loose rhomb: shared corners of the drawing must meet in space.
+      // With a rhomb or drawn shape: shared corners of the drawing must meet in space.
       const ws: number[] = [];
       for (const [k, da] of A.delta) {
         const db = B.delta.get(k);
         if (db !== undefined) ws.push(da - db);
       }
       if (ws.length >= 2 && ws.every((w) => w === ws[0])) edges.push({ a, b, w: ws[0], strength: 2 });
+      // Touching in one corner only (or an edge that cannot meet in this plane): hold on at a corner,
+      // but a clash there is no contradiction.
+      else if (ws.length >= 1) edges.push({ a, b, w: ws[0], strength: 4 });
     }
-  // Overlapping cubes first, then pieces sharing an edge with a rhomb, then cubes side by side.
+  // Overlapping cubes first, then pieces sharing an edge, then cubes side by side, then single corners.
   edges.sort((p, q) => p.strength - q.strength || p.a - q.a || p.b - q.b);
   const dsu = new Depths(n);
   const bad = new Set<number>();
   for (const e of edges) {
-    if (!dsu.join(e.a, e.b, e.w)) {
+    if (!dsu.join(e.a, e.b, e.w) && e.strength < 4) {
       bad.add(e.a);
       bad.add(e.b);
     }
   }
   // Every connected group stands on the ground: its lowest point at Z = 0.
   const found = pieces.map((_, i) => dsu.find(i));
-  const lowest = (i: number) => found[i][1] + Math.min(...pieces[i].delta.values(), pieces[i].plate ? 0 : Infinity);
+  const lowest = (i: number) => found[i][1] + Math.min(...pieces[i].delta.values());
   const low = new Map<number, number>();
   found.forEach(([r], i) => low.set(r, Math.min(low.get(r) ?? Infinity, lowest(i))));
   return { pieces, t: found.map(([r, off]) => off - low.get(r)!), bad };
@@ -249,24 +352,27 @@ const nearestT = (i: number, j: number, r: V3) => (dot(r, VIEW) - dot(onLine(i, 
 const BACK: Record<RhombType, V3> = { 0: [0, 0, -1], 1: [-1, 0, 0], 2: [0, -1, 0] };
 const VIEW_BACK: V3 = [-1 / Math.sqrt(3), -1 / Math.sqrt(3), -1 / Math.sqrt(3)];
 
-/** A loose rhomb: one face of its (virtual) cube, as a thin wall. */
+/** A loose rhomb or hand-drawn shape: a thin wall in its plane. */
 function faceWall(p: Piece, t: number, impossible: boolean): Wall3 {
   const s = p.shape;
+  const plane = p.plane as RhombType;
   return {
     id: s.id,
-    kind: 'face',
+    kind: s.kind === 'line' ? 'line' : 'face',
     pts: p.pts.map((q) => onLine(q[0], q[1], t + p.delta.get(key(q))!)),
-    back: BACK[p.rhomb as RhombType],
-    fill: s.parts[0].fill,
+    back: BACK[plane],
+    fill: s.kind === 'line' ? null : s.parts[0].fill,
     stroke: s.stroke,
     width: s.width,
     impossible,
+    plane,
+    flippable: p.drawn,
   };
 }
 
 /** Any other shape: a thin plate facing the viewer through the reference point. */
 function plateWall(s: Shape, ref: V3): Wall3 {
-  const base = { id: s.id, stroke: s.stroke, width: s.width, back: VIEW_BACK, impossible: false };
+  const base = { id: s.id, stroke: s.stroke, width: s.width, back: VIEW_BACK, impossible: false, plane: -1 as const, flippable: false };
   const pts = s.parts[0].pts.map((q) => onLine(q[0], q[1], nearestT(q[0], q[1], ref)));
   if (s.kind === 'line') return { ...base, kind: 'line', pts, fill: null };
   return { ...base, kind: 'plate', pts, fill: s.parts[0].fill };
@@ -290,7 +396,7 @@ export function buildModel(shapes: Shape[]): Model {
     if (i !== undefined) {
       const p = pieces[i];
       if (p.plate) cubes.push({ id: s.id, min: onLine(p.c[0], p.c[1], t[i]), colors: p.plate.colors, stroke: s.stroke, impossible: bad.has(i) });
-      else walls.push(faceWall(p, t[i], bad.has(i) || !corner.has(s.id)));
+      else walls.push(faceWall(p, t[i], bad.has(i) || (!p.drawn && !corner.has(s.id))));
       continue;
     }
     // Everything else stands next to the piece nearest in the drawing (or on the ground).

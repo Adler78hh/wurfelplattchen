@@ -143,7 +143,8 @@ function validShape(s: unknown): s is Shape {
         (p.fill === null || isHex(p.fill)),
     ) &&
     (x.stroke === null || isHex(x.stroke)) &&
-    isInt(x.width)
+    isInt(x.width) &&
+    (x.plane === undefined || x.plane === 0 || x.plane === 1 || x.plane === 2)
   );
 }
 

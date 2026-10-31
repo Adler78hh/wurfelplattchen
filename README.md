@@ -1,6 +1,6 @@
 # Würfelplättchen
 
-Tablet-App (PWA) für die Klassen 3–5: Kinder zeichnen auf einem Iso-Raster Bilder im Stil
+App (PWA) für Tablet und Handy, Klassen 3–5: Kinder zeichnen auf einem Iso-Raster Bilder im Stil
 von Victor Vasarely. Würfel, Treppen und unmögliche Figuren entstehen aus Würfelplättchen,
 Rauten und Dreiecken.
 
@@ -42,8 +42,13 @@ Der Knopf **3D** zeigt die Zeichnung als Körper. Ein Finger dreht, zwei Finger 
 - Lose Rauten werden dünne Wände: jede ist eine Seite eines gedachten Würfels. Rauten, die sich mit
   anderen Rauten oder Würfeln eine Kante teilen, stoßen im Raum genau an dieser Kante zusammen. Ein
   geteiltes Plättchen bleibt so eine Würfelecke aus drei Wänden, der Deckel bleibt oben.
-- Dreiecke, Sechsecke und Streckenzüge werden dünne Platten, die von vorne genau wie die Zeichnung
-  aussehen. Sie stehen beim nächsten Würfel.
+- Dreiecke, Sechsecke, Streckenzüge und Linien liegen in einer der drei Würfelebenen (liegend,
+  Wand nach rechts, Wand nach links) und sehen von vorne genau wie gezeichnet aus. Die App wählt die
+  Ebene, in der die meisten Kanten echte Würfelkanten sind; passen mehrere gleich gut, die, in der die
+  Fläche an Würfel- oder Rautenkanten ansetzt. Gemeinsame Kanten (sonst eine gemeinsame Ecke) stoßen
+  im Raum zusammen.
+- **Antippen** einer gezeichneten Fläche in 3D klappt sie in die nächste Ebene. Die Wahl wird im Bild
+  gespeichert und lässt sich rückgängig machen.
 - **Wie gezeichnet** dreht zurück in die Blickrichtung der Zeichnung.
 - **Unmögliches** hebt Würfel und Rauten hervor, die nicht zusammenpassen, und lose Rauten, die keine
   ganze Würfelecke bilden.
