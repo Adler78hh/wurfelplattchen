@@ -147,3 +147,22 @@ describe('zoom', () => {
     expect(fromFile(toFile(old))!.view.s).toBe(27);
   });
 });
+
+describe('splitting', () => {
+  it('turns a cube plate back into three rhombs and merging restores it', async () => {
+    const { split } = await import('../src/geo/shapes');
+    const cube: Shape = { id: newId(), kind: 'cube', parts: cubeFills(cubeFaces([4, 4], 0), '#6aa9e0'), stroke: '#4a3a2e', width: 2 };
+    const before = rhomb([0, 0], 0);
+    const after = rhomb([9, 9], 1);
+    const r = split([before, cube, after], [cube.id]);
+    expect(r.shapes.map((s) => s.kind)).toEqual(['rhomb', 'rhomb', 'rhomb', 'rhomb', 'rhomb']);
+    expect(r.ids).toHaveLength(3);
+    expect(r.shapes.slice(1, 4).map((s) => s.parts[0].fill)).toEqual(cube.parts.map((p) => p.fill));
+    expect(r.shapes[1].width).toBe(2);
+    const c = findCandidates(r.shapes);
+    expect(c).toHaveLength(1);
+    const back = merge(r.shapes, c[0]).shapes;
+    expect(back[1].kind).toBe('cube');
+    expect(back[1].parts.map((p) => p.fill)).toEqual(cube.parts.map((p) => p.fill));
+  });
+});

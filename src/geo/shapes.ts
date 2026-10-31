@@ -177,6 +177,24 @@ export function merge(shapes: Shape[], cand: Candidate): { shapes: Shape[]; id: 
   return { shapes: out, id: cube.id };
 }
 
+/** Replace cube plates by their three rhombs, in the same place of the stacking order. */
+export function split(shapes: Shape[], ids: string[]): { shapes: Shape[]; ids: string[] } {
+  const out: Shape[] = [];
+  const made: string[] = [];
+  for (const s of shapes) {
+    if (s.kind !== 'cube' || !ids.includes(s.id)) {
+      out.push(s);
+      continue;
+    }
+    for (const part of s.parts) {
+      const r: Shape = { id: newId(), kind: 'rhomb', parts: [{ pts: part.pts, fill: part.fill }], stroke: s.stroke, width: s.width };
+      out.push(r);
+      made.push(r.id);
+    }
+  }
+  return { shapes: out, ids: made };
+}
+
 // ------------------------------------------------------------ editing
 
 /** Give the shapes a new fill. Cube plates get the three shades of it. */

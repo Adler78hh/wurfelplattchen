@@ -27,6 +27,7 @@ import {
   findCandidates,
   hitShape,
   merge,
+  split,
   newId,
   pivotOf,
   recolor,
@@ -423,6 +424,16 @@ export function Editor({ initial, onExit }: Props) {
     return mine.reduce((a, b) => (dist(b) < dist(a) ? b : a));
   }, [candidates, focus, selection, g.s]);
 
+  const cubeIds = selShapes.filter((s) => s.kind === 'cube').map((s) => s.id);
+  const doSplit = () => {
+    if (!cubeIds.length) return;
+    const r = split(shapes, cubeIds);
+    commit(r.shapes);
+    setFocus(null);
+    setSelection(r.ids);
+    setFaceSel(null);
+  };
+
   const doMerge = () => {
     if (!active) return;
     const r = merge(shapes, active);
@@ -680,6 +691,9 @@ export function Editor({ initial, onExit }: Props) {
           <div className="row actions">
             <button className={'pill merge' + (active ? ' hot' : '')} disabled={!active} onClick={doMerge} title="Drei Rauten zu einem Würfelplättchen verschmelzen">
               <I.MergeIcon /> Verschmelzen
+            </button>
+            <button className={'pill split' + (cubeIds.length ? ' ready' : '')} disabled={!cubeIds.length} onClick={doSplit} title="Würfelplättchen in drei Rauten teilen">
+              <I.SplitIcon /> Teilen
             </button>
             {tool === 'pen' && poly.length > 0 && (
               <>

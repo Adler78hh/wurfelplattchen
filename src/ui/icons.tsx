@@ -125,6 +125,29 @@ export const MergeIcon = () => (
   </Icon>
 );
 
+/** Cube plate falling apart into its three rhombs. */
+export const SplitIcon = () => {
+  const R = hex(8.5);
+  const c: [number, number] = [12, 12];
+  const faces: [number, number][][] = [
+    [c, R[5], R[0], R[1]],
+    [c, R[1], R[2], R[3]],
+    [c, R[3], R[4], R[5]],
+  ];
+  const push: [number, number][] = [
+    [0, -2.2],
+    [1.9, 1.1],
+    [-1.9, 1.1],
+  ];
+  return (
+    <Icon>
+      {faces.map((f, k) => (
+        <polygon key={k} points={pts(f.map((p) => [p[0] + push[k][0], p[1] + push[k][1]] as [number, number]))} strokeWidth="1.8" />
+      ))}
+    </Icon>
+  );
+};
+
 export const RotateIcon = () => (
   <Icon>
     <path d="M20 12a8 8 0 1 1-2.4-5.7" />

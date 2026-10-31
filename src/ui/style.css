@@ -140,6 +140,11 @@ button:disabled {
   animation: pulse 1.4s ease-in-out infinite;
 }
 
+.pill.split.ready {
+  border-color: var(--petrol);
+  color: var(--petrol-dark);
+}
+
 @keyframes pulse {
   0%,
   100% {

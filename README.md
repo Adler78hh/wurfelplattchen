@@ -10,7 +10,7 @@ Rauten und Dreiecken.
   Bild aus Datei öffnen.
 - **Würfelplättchen:** das zentrale Bauteil. Drei Rauten, automatisch hell, mittel und dunkel schattiert.
   Ein zweiter Druck auf den Würfel-Knopf dreht das Plättchen um 60° (liegende Raute oben oder unten). Ein ausgewähltes Plättchen zeigt unter der
-  Zeichenfläche seine drei Seiten; jede lässt sich einzeln umfärben. Plättchen werden nicht wieder zerlegt.
+  Zeichenfläche seine drei Seiten; jede lässt sich einzeln umfärben. *Teilen* macht aus ausgewählten Plättchen wieder je drei lose Rauten.
 - **Raute, Dreieck, Sechseck:** genau eine Rasterzelle groß. Jeder weitere Druck auf den Rauten-Knopf
   dreht die Raute um 60°; der Knopf zeigt die aktuelle Lage.
 - **Verschmelzen:** Liegen drei lose Rauten zu einem Würfel zusammen, leuchtet ihr Rand und der Knopf
