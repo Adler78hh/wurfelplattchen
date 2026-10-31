@@ -28,6 +28,9 @@ import {
   hitShape,
   merge,
   split,
+  findTrianglePairs,
+  mergeTriangles,
+  type TrianglePair,
   isTurned,
   showsAsCorner,
   newId,
@@ -292,7 +295,7 @@ export function Editor({ initial, onExit }: Props) {
           setSelection(ids);
           setFaceSel(null);
         }
-        if (hit.shape.kind === 'rhomb') setFocus({ id: hit.shape.id, p });
+        if (hit.shape.kind === 'rhomb' || hit.shape.kind === 'triangle') setFocus({ id: hit.shape.id, p });
         drag.current = { mode: 'move', start: p, base: shapes, ids, d: [0, 0], moved: false };
       } else {
         drag.current = { mode: 'rect', start: p };
@@ -332,7 +335,7 @@ export function Editor({ initial, onExit }: Props) {
         if (s.kind === 'cube' && !isTurned(s)) commit(stackCube(docRef.current.shapes, s, nearestPoint(g, p.x, p.y)));
         else commit([...docRef.current.shapes, s]);
         if (isTurned(s)) setAsk({ id: s.id, kind: 'reading' });
-        if (s.kind === 'rhomb') setFocus({ id: s.id, p });
+        if (s.kind === 'rhomb' || s.kind === 'triangle') setFocus({ id: s.id, p });
       }
     } else if (d.mode === 'pen') {
       const q = nearestPoint(g, p.x, p.y);
@@ -465,6 +468,31 @@ export function Editor({ initial, onExit }: Props) {
     };
     return mine.reduce((a, b) => (dist(b) < dist(a) ? b : a));
   }, [candidates, focus, selection, g.s]);
+
+  // Two triangles that form a rhomb – offered when one of them was just set or is selected.
+  const triPairs = useMemo(() => findTrianglePairs(shapes), [shapes]);
+  const activeTri: TrianglePair | null = useMemo(() => {
+    if (active) return null;
+    const fid = focus?.id ?? (selection.length === 1 ? selection[0] : null);
+    const mine = fid ? triPairs.filter((t) => t.ids.includes(fid)) : [];
+    if (!mine.length) return null;
+    if (!focus) return mine[0];
+    const dist = (t: TrianglePair) => {
+      const a = toXY(g, t.pts[0]);
+      const b = toXY(g, t.pts[2]);
+      return Math.hypot((a.x + b.x) / 2 - focus.p.x, (a.y + b.y) / 2 - focus.p.y);
+    };
+    return mine.reduce((x, y) => (dist(y) < dist(x) ? y : x));
+  }, [triPairs, active, focus, selection, g.s]);
+  const doMergeTriangles = () => {
+    if (!activeTri) return;
+    const r = mergeTriangles(shapes, activeTri);
+    commit(r.shapes);
+    setFocus(null);
+    setToolRaw('select');
+    setSelection([r.id]);
+    setFaceSel(null);
+  };
 
   const cubeIds = selShapes.filter((s) => s.kind === 'cube').map((s) => s.id);
   const doSplit = () => {
@@ -740,6 +768,11 @@ export function Editor({ initial, onExit }: Props) {
                 {candShapes(c).map((s) => outline(s, 'cand-line', g.s * 0.06))}
               </g>
             ))}
+            {activeTri && (
+              <g className="cand active">
+                {activeTri.ids.map((id) => shapes.find((x) => x.id === id)).map((x) => x && outline(x, 'cand-line', g.s * 0.06))}
+              </g>
+            )}
             {selShapes.map((s) => outline(s, 'sel-line'))}
             {singleCube && faceSel !== null && <path className="face-line" d={pathD(g, singleCube.parts[faceSel].pts, true)} strokeWidth={g.s * 0.09} />}
             {poly.length > 0 && (
@@ -800,7 +833,12 @@ export function Editor({ initial, onExit }: Props) {
           </div>
 
           <div className="row actions">
-            <button className={'pill merge' + (active ? ' hot' : '')} disabled={!active} onClick={doMerge} title="Drei Rauten zu einem Würfelplättchen verschmelzen">
+            <button
+              className={'pill merge' + (active || activeTri ? ' hot' : '')}
+              disabled={!active && !activeTri}
+              onClick={active ? doMerge : doMergeTriangles}
+              title={activeTri ? 'Zwei Dreiecke zu einer Raute verschmelzen' : 'Drei Rauten zu einem Würfelplättchen verschmelzen'}
+            >
               <I.MergeIcon /> Verschmelzen
             </button>
             <button className={'pill split' + (cubeIds.length ? ' ready' : '')} disabled={!cubeIds.length} onClick={doSplit} title="Würfelplättchen in drei Rauten teilen">

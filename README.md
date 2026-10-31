@@ -17,6 +17,8 @@ Rauten und Dreiecken.
 - **Verschmelzen:** Liegen drei lose Rauten zu einem Würfel zusammen, leuchtet ihr Rand und der Knopf
   *Verschmelzen* wird grün. Gehört eine Raute zu zwei möglichen Würfeln, entscheidet das Antippen der
   Raute (näher an der gewünschten Würfelmitte) mit dem Auswahlwerkzeug.
+- **Zwei Dreiecke → Raute:** Liegt ein gerade gesetztes oder ausgewähltes Dreieck neben einem zweiten,
+  sodass beide eine Raute bilden, leuchtet *Verschmelzen* ebenfalls.
 - **Streckenzug:** Punkte nacheinander antippen. Zurück zum ersten Punkt ergibt eine Fläche, den letzten
   Punkt noch einmal antippen oder *Linie fertig* ergibt eine offene Linie.
 - **Ausmalen:** Dreieckszellen antippen oder darüber wischen.

@@ -189,3 +189,22 @@ describe('merging, any corner order', () => {
     expect(findCandidates(shapes)).toHaveLength(1);
   });
 });
+
+describe('two triangles → rhomb', () => {
+  it('finds neighbouring triangles and makes a proper rhomb of them', async () => {
+    const { findTrianglePairs, mergeTriangles } = await import('../src/geo/shapes');
+    const tri = (k: 0 | 1): Shape => ({ id: newId(), kind: 'triangle', parts: [{ pts: cellPts({ i: 2, j: 3, k }), fill: '#93cf7e' }], stroke: '#000000', width: 1 });
+    const a = tri(0);
+    const b = tri(1);
+    const far: Shape = { ...tri(0), id: newId(), parts: [{ pts: cellPts({ i: 8, j: 0, k: 0 }), fill: '#93cf7e' }] };
+    const pairs = findTrianglePairs([a, far, b]);
+    expect(pairs).toHaveLength(1);
+    const r = mergeTriangles([a, far, b], pairs[0]);
+    expect(r.shapes).toHaveLength(2);
+    const rh = r.shapes.find((s) => s.id === r.id)!;
+    expect(rh.kind).toBe('rhomb');
+    expect(rhombType(rh.parts[0].pts)).not.toBe(-1);
+    // A rhomb from triangles can go on to become part of a cube.
+    for (let k = 0; k < 4; k++) expect(edgeLen(rh.parts[0].pts[k], rh.parts[0].pts[(k + 1) % 4])).toBeCloseTo(10);
+  });
+});

@@ -254,3 +254,50 @@ export function copyOffset(shapes: Shape[]): LP {
   return [2 * n, -n]; // n hexagon widths to the right
 }
 
+
+// ------------------------------------------------------------ two triangles → rhomb
+
+export interface TrianglePair {
+  ids: [string, string];
+  /** The rhomb they form; its short diagonal is the shared edge. */
+  pts: LP[];
+}
+
+/** Pairs of triangles that share an edge and so form a rhomb. */
+export function findTrianglePairs(shapes: Shape[]): TrianglePair[] {
+  const byEdge = new Map<string, { id: string; a: LP; b: LP; other: LP }[]>();
+  for (const s of shapes) {
+    if (s.kind !== 'triangle' || s.parts[0].pts.length !== 3) continue;
+    const t = s.parts[0].pts;
+    for (let k = 0; k < 3; k++) {
+      const a = t[k];
+      const b = t[(k + 1) % 3];
+      const ek = [key(a), key(b)].sort().join('|');
+      const list = byEdge.get(ek) ?? [];
+      list.push({ id: s.id, a, b, other: t[(k + 2) % 3] });
+      byEdge.set(ek, list);
+    }
+  }
+  const out: TrianglePair[] = [];
+  for (const list of byEdge.values()) {
+    if (list.length !== 2 || list[0].id === list[1].id) continue;
+    const [x, y] = list;
+    out.push({ ids: [x.id, y.id], pts: [x.a, x.other, x.b, y.other] });
+  }
+  return out;
+}
+
+/** Replace the two triangles by one rhomb (it takes the place of the upper triangle). */
+export function mergeTriangles(shapes: Shape[], pair: TrianglePair): { shapes: Shape[]; id: string } {
+  const idx = pair.ids.map((id) => shapes.findIndex((s) => s.id === id));
+  if (idx.some((i) => i < 0)) return { shapes, id: '' };
+  const top = Math.max(...idx);
+  const t = shapes[top];
+  const rhomb: Shape = { id: newId(), kind: 'rhomb', parts: [{ pts: pair.pts, fill: t.parts[0].fill }], stroke: t.stroke, width: t.width };
+  const out: Shape[] = [];
+  shapes.forEach((s, i) => {
+    if (i === top) out.push(rhomb);
+    else if (!idx.includes(i)) out.push(s);
+  });
+  return { shapes: out, id: rhomb.id };
+}
