@@ -44,7 +44,7 @@ import { exportPng, printDoc, saveFile } from './exporting';
 import * as I from './icons';
 import { GRID_DOT, GRID_LINE, gridSegments, pathD, strokeWidth } from './render';
 import { type Fit, Stage } from './Stage';
-import { type PlaneChoice, planeChoice } from '../geo/space';
+import { type PlaneChoice, planeChoice, stackCube } from '../geo/space';
 
 const View3D = lazy(() => import('./View3D'));
 
@@ -328,7 +328,9 @@ export function Editor({ initial, onExit }: Props) {
       const s = makeShape(tool, p);
       setGhost(null);
       if (s && onSheet(p)) {
-        commit([...docRef.current.shapes, s]);
+        // A cube plate goes to the right depth in the stack (behind cubes that stand in front of it).
+        if (s.kind === 'cube' && !isTurned(s)) commit(stackCube(docRef.current.shapes, s, nearestPoint(g, p.x, p.y)));
+        else commit([...docRef.current.shapes, s]);
         if (isTurned(s)) setAsk({ id: s.id, kind: 'reading' });
         if (s.kind === 'rhomb') setFocus({ id: s.id, p });
       }

@@ -540,3 +540,75 @@ export function bounds(m: Model): { min: V3; max: V3 } | null {
     }
   return { min, max };
 }
+
+// ------------------------------------------------------------ stacking new cubes
+
+const cellKey = (m: V3) => m.join(',');
+const FACES: V3[] = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 1, 0],
+  [0, -1, 0],
+  [0, 0, 1],
+  [0, 0, -1],
+];
+
+/**
+ * Put a cube plate whose cube should sit in the space cell `min` (lowest corner) into the drawing:
+ * behind every overlapping plate whose cube is nearer to the viewer, in front of the others.
+ */
+export function insertCubeAt(shapes: Shape[], plate: Shape, min: V3): Shape[] {
+  const m = buildModel(shapes);
+  const c = project(min);
+  const order = new Map(shapes.map((s, i) => [s.id, i]));
+  let after = -1; // must come after these (they are behind)
+  let before = shapes.length; // must come before these (they are in front)
+  for (const q of m.cubes) {
+    const qc = project(q.min);
+    if (norm2([c[0] - qc[0], c[1] - qc[1]]) !== 1) continue; // only overlapping plates matter
+    const i = order.get(q.id)!;
+    if (dot(min, VIEW) > dot(q.min, VIEW)) after = Math.max(after, i);
+    else before = Math.min(before, i);
+  }
+  const at = after < before ? (before < shapes.length ? before : shapes.length) : shapes.length;
+  return [...shapes.slice(0, at), plate, ...shapes.slice(at)];
+}
+
+/**
+ * A new cube plate at lattice point c: choose the most natural space cell for it – resting against
+ * other cubes and standing on something – and put it into the drawing at the right depth.
+ */
+export function stackCube(shapes: Shape[], plate: Shape, c: LP): Shape[] {
+  const m = buildModel(shapes);
+  if (!m.cubes.length) return [...shapes, plate];
+  const occupied = new Set(m.cubes.map((q) => cellKey(q.min)));
+  const floor = Math.min(...m.cubes.map((q) => q.min[2]));
+  const cands = new Map<string, V3>();
+  for (const q of m.cubes) {
+    const qc = project(q.min);
+    const v: LP = [c[0] - qc[0], c[1] - qc[1]];
+    const n = norm2(v);
+    if (n !== 1 && n !== 3) continue;
+    const d0: V3 = [v[0] + v[1], v[1], 0];
+    for (let k = -3; k <= 3; k++) {
+      const d: V3 = [d0[0] + k, d0[1] + k, d0[2] + k];
+      if (len2(d) > 2) continue;
+      const cell: V3 = [q.min[0] + d[0], q.min[1] + d[1], q.min[2] + d[2]];
+      cands.set(cellKey(cell), cell);
+    }
+  }
+  let best: V3 | null = null;
+  let bestScore = -Infinity;
+  for (const cell of cands.values()) {
+    if (cell[2] < floor || occupied.has(cellKey(cell))) continue;
+    const faces = FACES.filter((f) => occupied.has(cellKey([cell[0] + f[0], cell[1] + f[1], cell[2] + f[2]]))).length;
+    const stands = cell[2] === floor || occupied.has(cellKey([cell[0], cell[1], cell[2] - 1]));
+    // Touching faces count most, then standing on something; ties: nearer to the viewer.
+    const score = faces * 2 + (stands ? 1 : 0) + dot(cell, VIEW) * 1e-3;
+    if (score > bestScore) {
+      bestScore = score;
+      best = cell;
+    }
+  }
+  return best ? insertCubeAt(shapes, plate, best) : [...shapes, plate];
+}

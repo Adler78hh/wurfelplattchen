@@ -234,3 +234,39 @@ describe('speed', () => {
     expect(ms).toBeLessThan(1500);
   });
 });
+
+describe('stacking new cubes', () => {
+  const place = async (shapes: Shape[], c: LP) => {
+    const { stackCube } = await import('../src/geo/space');
+    return stackCube(shapes, cube(c), c);
+  };
+  const zOf = (shapes: Shape[]) => buildModel(shapes).cubes.map((q) => q.min);
+
+  it('a plate drawn above a cube goes on top', async () => {
+    const s = await place([cube([3, 2])], [3, 1]);
+    const [a, b] = zOf(s);
+    expect(b[2] - a[2]).toBe(1);
+  });
+
+  it('a plate drawn up-right of a cube goes behind it, on the ground, and is drawn behind', async () => {
+    const base = cube([3, 2]);
+    const s = await place([base], [4, 1]);
+    expect(s[s.length - 1].id).toBe(base.id); // the new plate was put underneath
+    const cubes = buildModel(s).cubes;
+    expect(cubes.every((q) => q.min[2] === 0)).toBe(true);
+  });
+
+  it('a plate drawn below a cube comes in front on the ground', async () => {
+    const s = await place([cube([3, 2])], [3, 3]);
+    const cubes = buildModel(s).cubes;
+    expect(cubes.every((q) => q.min[2] === 0)).toBe(true);
+  });
+
+  it('builds a staircase going back in any order', async () => {
+    // Steps going back and up, placed front to back.
+    let s: Shape[] = [cube([0, 4])];
+    s = await place(s, [1, 2]); // behind (−Y) and up
+    const cubes = buildModel(s).cubes;
+    expect(cubes.some((q) => q.impossible)).toBe(false);
+  });
+});
