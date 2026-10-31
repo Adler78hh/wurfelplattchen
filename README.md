@@ -34,7 +34,9 @@ Rauten und Dreiecken.
   mehr Rasterpunkte. Zwei Finger zoomen und verschieben, ebenso Mausrad/Trackpad und die Knöpfe
   +, − und Zurücksetzen. Export und Druck zeigen genau den sichtbaren Ausschnitt.
 - **Rückgängig/Wiederholen**, auch mit Strg+Z / Strg+Umschalt+Z.
-- **Speichern und Teilen:** automatisch in der Galerie; als PNG, drucken bzw. PDF, als Datei (`.wuerfel.json`).
+- **Speichern und Teilen:** automatisch in der Galerie; als PNG, drucken bzw. PDF (ohne oder mit Raster),
+  als Datei (`.wuerfel.json`). *Leeres Raster drucken* ergibt ein Arbeitsblatt zum Zeichnen auf Papier
+  (Punkte oder Dreiecke, in der aktuellen Zoomstufe).
 
 Nach dem ersten Besuch funktioniert die App auch offline und lässt sich zum Home-Bildschirm hinzufügen.
 

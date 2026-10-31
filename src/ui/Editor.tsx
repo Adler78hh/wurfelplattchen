@@ -763,6 +763,22 @@ export function Editor({ initial, onExit }: Props) {
               <button
                 onClick={() => {
                   setMenu(null);
+                  printDoc({ ...docRef.current, gridVisible: true }, true);
+                }}
+              >
+                Drucken mit Raster
+              </button>
+              <button
+                onClick={() => {
+                  setMenu(null);
+                  printDoc({ ...docRef.current, shapes: [], gridVisible: true }, true);
+                }}
+              >
+                Leeres Raster drucken (Arbeitsblatt)
+              </button>
+              <button
+                onClick={() => {
+                  setMenu(null);
                   saveFile(docRef.current);
                 }}
               >
