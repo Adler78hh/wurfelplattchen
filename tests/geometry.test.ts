@@ -166,3 +166,19 @@ describe('splitting', () => {
     expect(back[1].parts.map((p) => p.fill)).toEqual(cube.parts.map((p) => p.fill));
   });
 });
+
+describe('cube colours', () => {
+  it('lid has the chosen colour, left is lighter, right is darker', () => {
+    const lum = (hex: string) => {
+      const n = parseInt(hex.slice(1), 16);
+      return 0.3 * (n >> 16) + 0.59 * ((n >> 8) & 255) + 0.11 * (n & 255);
+    };
+    for (const v of [0, 1] as const) {
+      const parts = cubeFills(cubeFaces([2, 2], v), '#6AA9E0');
+      const byType = (t: RhombType) => parts.find((p) => rhombType(p.pts) === t)!.fill!;
+      expect(byType(0)).toBe('#6aa9e0');
+      expect(lum(byType(2))).toBeGreaterThan(lum('#6aa9e0'));
+      expect(lum(byType(1))).toBeLessThan(lum('#6aa9e0'));
+    }
+  });
+});

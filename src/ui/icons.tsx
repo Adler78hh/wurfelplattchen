@@ -31,7 +31,8 @@ export function CubeIcon({ variant = 0, colors }: { variant?: 0 | 1; colors?: st
   const R = hex(10);
   const c: [number, number] = [12, 12];
   const starts = variant === 0 ? [5, 1, 3] : [0, 2, 4];
-  const fills = colors ?? ['#ffe7a8', '#d9a53a', '#f5c64f'];
+  // Order: lid, right face, left face – lid in the chosen colour, left lighter, right darker.
+  const fills = colors ?? ['#ffd166', '#b39248', '#ffe3a1'];
   return (
     <svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true">
       {starts.map((s, k) => (

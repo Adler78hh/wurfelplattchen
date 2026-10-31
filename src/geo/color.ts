@@ -37,11 +37,14 @@ export function mix(a: string, b: string, t: number): string {
   return toHex(ca.map((v, i) => v + (cb[i] - v) * t));
 }
 
-/** Shade of a base colour for a rhomb face: lying = light, left = middle, right = dark. */
+/**
+ * Shade of the chosen colour for a rhomb face. The lying rhomb (lid) shows the chosen colour itself,
+ * the left face a lighter and the right face a darker tone – as if the light came from the left.
+ */
 export function shade(base: string, t: RhombType): string {
-  if (t === 0) return mix(base, '#ffffff', 0.45);
-  if (t === 2) return mix(base, '#000000', 0.1);
-  return mix(base, '#000000', 0.32);
+  if (t === 0) return base.toLowerCase();
+  if (t === 2) return mix(base, '#ffffff', 0.42);
+  return mix(base, '#000000', 0.3);
 }
 
 export function hsvToHex(h: number, s: number, v: number): string {
