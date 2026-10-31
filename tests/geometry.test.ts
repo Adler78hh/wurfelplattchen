@@ -182,3 +182,10 @@ describe('cube colours', () => {
     }
   });
 });
+
+describe('merging, any corner order', () => {
+  it('finds the cube although the rhombs list their corners starting at an acute corner', () => {
+    const shapes = cubeFaces([5, 5], 0).map((pts) => ({ ...rhomb([0, 0], 0), id: newId(), parts: [{ pts: [pts[1], pts[2], pts[3], pts[0]], fill: '#ffd166' }] }));
+    expect(findCandidates(shapes)).toHaveLength(1);
+  });
+});

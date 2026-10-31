@@ -14,7 +14,7 @@
 // alone), all other shapes as thin plates facing the viewer, placed next to the nearest cube.
 
 import { type LP, type RhombType, key, norm2, rhombType, same, sub } from './lattice';
-import { type Shape, findCandidates } from './shapes';
+import { type Shape, findCandidates, showsAsCorner } from './shapes';
 
 export type V3 = [number, number, number];
 
@@ -27,6 +27,8 @@ export interface Cube3 {
   stroke: string | null;
   /** Part of a contradiction (impossible figure). */
   impossible: boolean;
+  /** Drawn as a turned plate (seen from below): tapping it in 3D can turn it into a corner. */
+  turned: boolean;
 }
 
 export interface Wall3 {
@@ -44,6 +46,8 @@ export interface Wall3 {
   plane: RhombType | -1;
   /** Hand-drawn shape whose plane the child may change by tapping it in 3D. */
   flippable: boolean;
+  /** One of the three walls of a turned cube plate read as an inner corner (the plate's id). */
+  cornerOf?: string;
 }
 
 export interface Model {
@@ -149,6 +153,8 @@ interface Piece {
   /** Plane of a face (rhomb or drawn shape), −1 for cubes. */
   plane: RhombType | -1;
   drawn: boolean;
+  /** A turned cube plate read as an inner corner: three walls instead of a cube. */
+  corner: boolean;
 }
 
 // Z offset of the cube corner seen at hexagon corner R0 … R5 (up, up-right, down-right, down, down-left, up-left).
@@ -184,7 +190,7 @@ function pieceOf(s: Shape, order: number): Piece | null {
     const lid = s.parts.find((p) => rhombType(p.pts) === 0)!;
     const front = lid.pts.some((p) => same(sub(p, plate.c), [0, -1]));
     const delta = deltas(plate.c, pts, front ? 1 : 0);
-    return delta ? { shape: s, order, c: plate.c, pts, delta, plate, plane: -1, drawn: false } : null;
+    return delta ? { shape: s, order, c: plate.c, pts, delta, plate, plane: -1, drawn: false, corner: !front && showsAsCorner(s) } : null;
   }
   if (s.kind === 'cube') return null;
   const pts = s.parts[0].pts;
@@ -195,7 +201,7 @@ function pieceOf(s: Shape, order: number): Piece | null {
   const [a, b] = norm2(sub(pts[2], pts[0])) === 1 ? [pts[0], pts[2]] : [pts[1], pts[3]];
   const c = t === 0 ? (a[1] > b[1] ? a : b) : t === 1 ? (a[0] < b[0] ? a : b) : a[0] > b[0] ? a : b;
   const delta = deltas(c, pts, 1);
-  return delta ? { shape: s, order, c, pts, delta, plate: null, plane: t, drawn: false } : null;
+  return delta ? { shape: s, order, c, pts, delta, plate: null, plane: t, drawn: false, corner: false } : null;
 }
 
 // Axis of a lattice step: X → (1, 0), Y → (−1, 1), Z → (0, −1) (and their multiples), else −1.
@@ -249,7 +255,7 @@ function drawnPiece(s: Shape, order: number, guess?: RhombType): Piece | null {
     const v = sub(p, o);
     delta.set(key(p), plane === 0 ? 0 : plane === 1 ? -(v[0] + v[1]) : -v[1]);
   }
-  return { shape: s, order, c: o, pts, delta, plate: null, plane, drawn: true };
+  return { shape: s, order, c: o, pts, delta, plate: null, plane, drawn: true, corner: false };
 }
 
 interface Placed {
@@ -326,7 +332,7 @@ function placePieces(shapes: Shape[]): Placed {
     for (let b = a + 1; b < n; b++) {
       const A = pieces[a];
       const B = pieces[b];
-      if (A.plate && B.plate) {
+      if (A.plate && B.plate && !A.corner && !B.corner) {
         // Two cubes: touching in the drawing → touching in space, the one drawn on top in front.
         const v = sub(B.c, A.c);
         const d = offsetFor(v, B.order > A.order);
@@ -415,7 +421,29 @@ export function buildModel(shapes: Shape[]): Model {
     const i = byId.get(s.id);
     if (i !== undefined) {
       const p = pieces[i];
-      if (p.plate) cubes.push({ id: s.id, min: onLine(p.c[0], p.c[1], t[i]), colors: p.plate.colors, stroke: s.stroke, impossible: bad.has(i) });
+      if (p.corner) {
+        // Inner corner: the three rhombs as walls, exactly where they are drawn.
+        s.parts.forEach((part, k) => {
+          const plane = rhombType(part.pts) as RhombType;
+          walls.push({
+            id: s.id + '#' + k,
+            kind: 'face',
+            pts: part.pts.map((q) => onLine(q[0], q[1], t[i] + p.delta.get(key(q))!)),
+            back: BACK[plane],
+            fill: part.fill,
+            stroke: s.stroke,
+            width: s.width,
+            impossible: bad.has(i),
+            plane,
+            flippable: false,
+            cornerOf: s.id,
+          });
+        });
+      } else if (p.plate) {
+        const lid = s.parts.find((q) => rhombType(q.pts) === 0);
+        const turned = !!lid && lid.pts.some((q) => same(sub(q, p.c), [0, 1]));
+        cubes.push({ id: s.id, min: onLine(p.c[0], p.c[1], t[i]), colors: p.plate.colors, stroke: s.stroke, impossible: bad.has(i), turned });
+      }
       else walls.push(faceWall(p, t[i], bad.has(i) || (!p.drawn && !corner.has(s.id))));
       continue;
     }

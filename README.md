@@ -36,6 +36,10 @@ Nach dem ersten Besuch funktioniert die App auch offline und lässt sich zum Hom
 Der Knopf **3D** zeigt die Zeichnung als Körper. Ein Finger dreht, zwei Finger zoomen und verschieben.
 
 - Jedes Würfelplättchen wird ein Würfel. Gegenüberliegende Seiten haben dieselbe Farbe.
+- Ausnahme **gedrehte Plättchen** (liegende Raute unten): Sie sind entweder ein Würfel von unten oder
+  eine **Ecke** wie in einem Zimmer (Boden und zwei Wände) – nur die Ecke sieht in 3D genau wie
+  gezeichnet aus. Beim Setzen oder Verschmelzen fragt eine Sprechblase „Würfel oder Ecke?“; ohne
+  Antwort wird es eine Ecke. Umwählen in der Auswahl-Zeile „In 3D“ oder durch Antippen in 3D.
 - Plättchen, die sich im Bild überlappen oder berühren, berühren sich auch im Raum; was im Bild vorne
   liegt, ist auch im Raum vorne. Jedes Gebäude steht auf dem Boden.
 - Widersprechen sich diese Wünsche (unmögliche Figur), wird an einer Stelle aufgeschnitten.

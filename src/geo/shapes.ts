@@ -35,7 +35,26 @@ export interface Shape {
    * 2 wall facing left – like the three rhomb kinds). Missing: the app guesses.
    */
   plane?: 0 | 1 | 2;
+  /**
+   * Turned cube plates only (lying rhomb at the bottom): a cube seen from below, or an inner corner
+   * like the corner of a room. Missing: corner.
+   */
+  reading?: 'cube' | 'corner';
 }
+
+/** A cube plate turned by 60°: its lying rhomb is at the bottom (the common corner is the back one). */
+export function isTurned(s: Shape): boolean {
+  if (s.kind !== 'cube' || s.parts.length !== 3) return false;
+  const c = s.parts[0].pts.find((p) => s.parts.every((pt) => pt.pts.some((q) => q[0] === p[0] && q[1] === p[1])));
+  if (!c) return false;
+  return s.parts.some((pt) => {
+    const lying = pt.pts.length === 4 && [0, 1, 2, 3].some((k) => pt.pts[k][0] === pt.pts[(k + 2) % 4][0] && Math.abs(pt.pts[k][1] - pt.pts[(k + 2) % 4][1]) === 1);
+    return lying && pt.pts.some((q) => q[0] === c[0] && q[1] === c[1] + 1);
+  });
+}
+
+/** How a cube plate appears in 3D. */
+export const showsAsCorner = (s: Shape): boolean => isTurned(s) && s.reading !== 'cube';
 
 let counter = 0;
 export const newId = (): string => Date.now().toString(36) + '-' + (counter++).toString(36);
@@ -122,9 +141,10 @@ export interface Candidate {
 }
 
 /** 60° slots (0–5) a rhomb covers around one of its obtuse corners. */
-function slotsAt(pts: LP[], c: LP): number[] | null {
-  const a = ringIndex(sub(pts[1], c));
-  const b = ringIndex(sub(pts[3], c));
+function slotsAt(pts: LP[], k: number): number[] | null {
+  const c = pts[k];
+  const a = ringIndex(sub(pts[(k + 1) % 4], c));
+  const b = ringIndex(sub(pts[(k + 3) % 4], c));
   if (a < 0 || b < 0) return null;
   if ((b - a + 6) % 6 === 2) return [a, (a + 1) % 6];
   if ((a - b + 6) % 6 === 2) return [b, (b + 1) % 6];
@@ -138,8 +158,10 @@ export function findCandidates(shapes: Shape[]): Candidate[] {
     if (s.kind !== 'rhomb') continue;
     const pts = s.parts[0].pts;
     if (rhombType(pts) < 0) continue;
-    for (const c of [pts[0], pts[2]]) {
-      const slots = slotsAt(pts, c);
+    // Its two obtuse corners (120°), wherever they are in the list of corners.
+    for (let n = 0; n < 4; n++) {
+      const c = pts[n];
+      const slots = slotsAt(pts, n);
       if (!slots) continue;
       const k = key(c);
       if (!byCenter.has(k)) byCenter.set(k, { center: c, items: [] });

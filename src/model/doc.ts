@@ -144,7 +144,8 @@ function validShape(s: unknown): s is Shape {
     ) &&
     (x.stroke === null || isHex(x.stroke)) &&
     isInt(x.width) &&
-    (x.plane === undefined || x.plane === 0 || x.plane === 1 || x.plane === 2)
+    (x.plane === undefined || x.plane === 0 || x.plane === 1 || x.plane === 2) &&
+    (x.reading === undefined || x.reading === 'cube' || x.reading === 'corner')
   );
 }
 

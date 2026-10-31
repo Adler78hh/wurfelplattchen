@@ -28,6 +28,8 @@ import {
   hitShape,
   merge,
   split,
+  isTurned,
+  showsAsCorner,
   newId,
   pivotOf,
   recolor,
@@ -94,8 +96,11 @@ export function Editor({ initial, onExit }: Props) {
   const [show3d, setShow3d] = useState(false);
   const [fit, setFit] = useState<Fit | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  /** Just closed a shape that can be read two ways: ask whether it lies or stands. */
-  const [ask, setAsk] = useState<{ id: string; options: RhombType[] } | null>(null);
+  /**
+   * A shape that can be read two ways was just made: ask whether it lies or stands (drawn shapes),
+   * or whether a turned cube plate is a cube or a corner.
+   */
+  const [ask, setAsk] = useState<{ id: string; kind: 'plane'; options: RhombType[] } | { id: string; kind: 'reading' } | null>(null);
 
   const [selection, setSelection] = useState<string[]>([]);
   const [faceSel, setFaceSel] = useState<number | null>(null);
@@ -324,6 +329,7 @@ export function Editor({ initial, onExit }: Props) {
       setGhost(null);
       if (s && onSheet(p)) {
         commit([...docRef.current.shapes, s]);
+        if (isTurned(s)) setAsk({ id: s.id, kind: 'reading' });
         if (s.kind === 'rhomb') setFocus({ id: s.id, p });
       }
     } else if (d.mode === 'pen') {
@@ -340,7 +346,7 @@ export function Editor({ initial, onExit }: Props) {
         const next = [...docRef.current.shapes, made];
         commit(next);
         const choice = planeChoice(next, made.id);
-        if (choice && choice.options.length > 1) setAsk({ id: made.id, options: choice.options });
+        if (choice && choice.options.length > 1) setAsk({ id: made.id, kind: 'plane', options: choice.options });
         setPolyNow([]);
       } else {
         setPolyNow([...cur, q]);
@@ -395,6 +401,10 @@ export function Editor({ initial, onExit }: Props) {
   const drawnSel = selShapes.length > 0 && selShapes.every((s) => s.kind !== 'cube' && s.kind !== 'rhomb');
   const choices: PlaneChoice[] = drawnSel ? selShapes.map((s) => planeChoice(shapes, s.id)).filter((c): c is PlaneChoice => !!c) : [];
   const shownPlane = choices.length && choices.every((c) => c.plane === choices[0].plane) ? choices[0].plane : null;
+  const setReading = (reading: 'cube' | 'corner', id: string) => {
+    commit(docRef.current.shapes.map((s) => (s.id === id ? { ...s, reading } : s)));
+    setAsk(null);
+  };
   const setPlane = (plane: RhombType, ids: string[]) => {
     commit(docRef.current.shapes.map((s) => (ids.includes(s.id) ? { ...s, plane } : s)));
     setAsk(null);
@@ -468,6 +478,8 @@ export function Editor({ initial, onExit }: Props) {
     if (!active) return;
     const r = merge(shapes, active);
     commit(r.shapes);
+    const made = r.shapes.find((x) => x.id === r.id);
+    if (made && isTurned(made)) setAsk({ id: r.id, kind: 'reading' });
     setFocus(null);
     setToolRaw('select');
     setSelection([r.id]);
@@ -568,31 +580,51 @@ export function Editor({ initial, onExit }: Props) {
     <button key={label} className={'swatch' + (on ? ' on' : '') + (ring ? ' ring' : '')} style={ring ? { borderColor: c } : { background: c }} onClick={onClick} aria-label={label} title={label} />
   );
 
-  /** Speech bubble next to a freshly drawn tipping figure: "Liegt sie oder steht sie?" */
+  /** Speech bubble next to a freshly made tipping figure or turned cube plate. */
   const askBubble = () => {
     const sh = shapes.find((x) => x.id === ask!.id);
     if (!sh || !fit) return null;
-    const pts = sh.parts[0].pts.map((q) => toXY(g, q));
+    const pts = sh.parts.flatMap((p) => p.pts).map((q) => toXY(g, q));
     const cx = pts.reduce((a, q) => a + q.x, 0) / pts.length;
     const top = Math.min(...pts.map((q) => q.y));
     const W = wrapRef.current?.clientWidth ?? 600;
     const x = Math.max(130, Math.min(W - 130, fit.tx + cx * fit.scale));
     const y = Math.max(8, fit.ty + top * fit.scale - 10);
+    const a = ask!;
     return (
       <div className={'ask' + (y < 140 ? ' below' : '')} style={{ left: x, top: y < 140 ? fit.ty + Math.max(...pts.map((q) => q.y)) * fit.scale + 10 : y }}>
-        <div className="ask-q">Liegt sie oder steht sie?</div>
+        <div className="ask-q">{a.kind === 'plane' ? 'Liegt sie oder steht sie?' : 'Würfel oder Ecke?'}</div>
         <div className="ask-row">
-          {ask!.options.map((pl) => (
-            <button key={pl} className="plane-btn" onClick={() => setPlane(pl, [ask!.id])} title={PLANE_TITLES[pl]} aria-label={PLANE_TITLES[pl]}>
-              <I.RhombIcon type={pl} />
-              <span>{PLANE_NAMES[pl]}</span>
-            </button>
-          ))}
+          {a.kind === 'plane'
+            ? a.options.map((pl) => (
+                <button key={pl} className="plane-btn" onClick={() => setPlane(pl, [a.id])} title={PLANE_TITLES[pl]} aria-label={PLANE_TITLES[pl]}>
+                  <I.RhombIcon type={pl} />
+                  <span>{PLANE_NAMES[pl]}</span>
+                </button>
+              ))
+            : readingButtons(sh, (r) => setReading(r, a.id))}
           <button className="ask-x" onClick={() => setAsk(null)} aria-label="Später">
             <I.CloseIcon />
           </button>
         </div>
       </div>
+    );
+  };
+
+  /** "Würfel" (seen from below) or "Ecke" (inner corner) for a turned cube plate. */
+  const readingButtons = (sh: Shape, pick: (r: 'cube' | 'corner') => void, highlight = false) => {
+    const corner = showsAsCorner(sh);
+    return (
+      <>
+        <button className={'plane-btn' + (highlight && !corner ? ' on' : '')} onClick={() => pick('cube')} title="Ein Würfel, von unten gesehen" aria-label="Würfel">
+          <I.CubeIcon variant={0} colors={[sh.parts[0].fill ?? '#ffd166', sh.parts[1].fill ?? '#b39248', sh.parts[2].fill ?? '#ffe3a1']} />
+          <span>Würfel</span>
+        </button>
+        <button className={'plane-btn' + (highlight && corner ? ' on' : '')} onClick={() => pick('corner')} title="Eine Ecke wie in einem Zimmer: Boden und zwei Wände" aria-label="Ecke">
+          <I.CubeIcon variant={1} colors={[sh.parts[0].fill ?? '#ffd166', sh.parts[1].fill ?? '#b39248', sh.parts[2].fill ?? '#ffe3a1']} />
+          <span>Ecke</span>
+        </button>
+      </>
     );
   };
 
@@ -822,6 +854,14 @@ export function Editor({ initial, onExit }: Props) {
             </div>
           )}
 
+          {singleCube && isTurned(singleCube) && (
+            <div className="row planes">
+              <span className="label">In 3D</span>
+              {readingButtons(singleCube, (r) => setReading(r, singleCube.id), true)}
+              <span className="hint">{singleCube.reading ? 'Du hast gewählt.' : 'Gedrehtes Plättchen: Würfel von unten oder Zimmerecke – du entscheidest.'}</span>
+            </div>
+          )}
+
           {singleCube && (
             <div className="row faces">
               <span className="label">Seiten</span>
@@ -875,6 +915,7 @@ export function Editor({ initial, onExit }: Props) {
               shapes={doc.shapes}
               onClose={() => setShow3d(false)}
               onFlip={(id, plane) => commit(docRef.current.shapes.map((s) => (s.id === id ? { ...s, plane } : s)))}
+              onReading={(id, reading) => commit(docRef.current.shapes.map((s) => (s.id === id ? { ...s, reading } : s)))}
             />
           </Suspense>
         </div>

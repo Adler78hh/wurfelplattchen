@@ -47,9 +47,18 @@ describe('space', () => {
     expect(m.cubes.filter((c) => c.impossible).length).toBeGreaterThan(0);
   });
 
-  it('the turned plate is also a cube', () => {
-    const m = buildModel([cube([2, 2], 1)]);
-    expect(m.cubes).toHaveLength(1);
+  it('the turned plate is an inner corner unless the child chose a cube', () => {
+    const c = cube([2, 2], 1);
+    const m = buildModel([c]);
+    expect(m.cubes).toHaveLength(0);
+    expect(m.walls).toHaveLength(3);
+    expect(m.walls.every((w) => w.cornerOf === c.id && !w.impossible)).toBe(true);
+    // Seen from the front it looks exactly as drawn.
+    m.walls.forEach((w, k) => w.pts.forEach((p, n) => expect(project(p)).toEqual(c.parts[k].pts[n])));
+    const asCube = buildModel([{ ...c, reading: 'cube' }]);
+    expect(asCube.cubes).toHaveLength(1);
+    expect(asCube.cubes[0].turned).toBe(true);
+    expect(buildModel([cube([2, 2], 0)]).cubes[0].turned).toBe(false);
   });
 
   it('a loose rhomb becomes a face wall in its plane next to the cube', () => {
@@ -81,7 +90,7 @@ describe('loose rhombs', () => {
     const { split } = await import('../src/geo/shapes');
     for (const v of [0, 1] as const) {
       const c = cube([3, 2], v);
-      const whole = buildModel([c]).cubes[0];
+      const whole = buildModel([{ ...c, reading: 'cube' }]).cubes[0];
       const parts = buildModel(split([c], [c.id]).shapes);
       expect(parts.cubes).toHaveLength(0);
       expect(parts.walls).toHaveLength(3);
@@ -184,5 +193,25 @@ describe('tipping figures', () => {
     const choice = planeChoice([cube(c), p], p.id)!;
     expect(choice).toMatchObject({ plane: 1, chosen: true });
     expect(buildModel([cube(c), p]).walls[0].plane).toBe(1);
+  });
+});
+
+describe('star with a turned plate', () => {
+  it('the orange corner fits the star without contradiction', async () => {
+    const { RING, cubeFaces: faces } = await import('../src/geo/lattice');
+    const add = (a: LP, b: LP): LP => [a[0] + b[0], a[1] + b[1]];
+    const star: Shape[] = RING.map((u, k) => {
+      const v = RING[(k + 1) % 6];
+      return { id: 'r' + k, kind: 'rhomb', parts: [{ pts: [[0, 0], u, add(u, v), v], fill: '#ffd166' }], stroke: null, width: 1 };
+    });
+    // Orange lying rhomb below the star, merged with the two lower rhombs into a turned plate at (0, 1).
+    const plate: Shape = { id: 'p', kind: 'cube', parts: cubeFills(faces([0, 1], 1), '#f59a4a'), stroke: null, width: 1 };
+    const rest = star.filter((r) => !plate.parts.some((pt) => pt.pts.every((q) => r.parts[0].pts.some((x) => x[0] === q[0] && x[1] === q[1]))));
+    expect(rest).toHaveLength(4);
+    const m = buildModel([...rest, plate]);
+    expect(m.cubes).toHaveLength(0);
+    const corner = m.walls.filter((w) => w.cornerOf === 'p');
+    expect(corner).toHaveLength(3);
+    expect(corner.some((w) => w.impossible)).toBe(false);
   });
 });

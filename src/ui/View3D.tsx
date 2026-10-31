@@ -21,6 +21,8 @@ interface Props {
   onClose(): void;
   /** A hand-drawn shape was tapped: turn it into its next plane. */
   onFlip(id: string, plane: 0 | 1 | 2): void;
+  /** A turned cube plate was tapped: switch between cube and inner corner. */
+  onReading(id: string, reading: 'cube' | 'corner'): void;
 }
 
 interface Ctx {
@@ -34,7 +36,7 @@ interface Ctx {
   turnTo(dir: THREE.Vector3, dur?: number, zoom?: number, target?: THREE.Vector3): void;
 }
 
-export default function View3D({ name, shapes, onClose, onFlip }: Props) {
+export default function View3D({ name, shapes, onClose, onFlip, onReading }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const model = useMemo(() => buildModel(shapes), [shapes]);
   const [mark, setMark] = useState(false);
@@ -44,9 +46,11 @@ export default function View3D({ name, shapes, onClose, onFlip }: Props) {
   markRef.current = mark;
   const flipRef = useRef(onFlip);
   flipRef.current = onFlip;
+  const readingRef = useRef(onReading);
+  readingRef.current = onReading;
   const flipPlanes = useRef(new Map<string, 0 | 1 | 2>());
   const impossibleCount = model.cubes.filter((c) => c.impossible).length + model.walls.filter((w) => w.impossible).length;
-  const canFlip = model.walls.some((w) => w.flippable);
+  const canFlip = model.walls.some((w) => w.flippable || w.cornerOf) || model.cubes.some((c) => c.turned);
   const empty = !model.cubes.length && !model.walls.length;
 
   // Renderer, camera and controls live as long as the view is open.
@@ -145,8 +149,11 @@ export default function View3D({ name, shapes, onClose, onFlip }: Props) {
       const r = renderer.domElement.getBoundingClientRect();
       const ray = new THREE.Raycaster();
       ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-      const hit = ray.intersectObjects(c.content.children, false).find((h) => h.object.userData.flipId || h.object.userData.solid);
-      const id = hit?.object.userData.flipId as string | undefined;
+      const hit = ray.intersectObjects(c.content.children, false).find((h) => h.object.userData.solid);
+      const data = hit?.object.userData ?? {};
+      if (data.turnedCube) return readingRef.current(data.turnedCube, 'corner');
+      if (data.cornerOf) return readingRef.current(data.cornerOf, 'cube');
+      const id = data.flipId as string | undefined;
       if (!id) return;
       const plane = flipPlanes.current.get(id);
       if (plane !== undefined) flipRef.current(id, ((plane + 1) % 3) as 0 | 1 | 2);
@@ -261,7 +268,7 @@ export default function View3D({ name, shapes, onClose, onFlip }: Props) {
         {failed && <p className="view3d-msg">Dieses Gerät kann leider keine 3D-Grafik anzeigen.</p>}
         {!empty && !failed && (
           <p className="view3d-hint">
-            Ein Finger dreht · zwei Finger zoomen{canFlip ? ' · gezeichnete Fläche antippen: umklappen' : ''}
+            Ein Finger dreht · zwei Finger zoomen{canFlip ? ' · Fläche oder gedrehtes Plättchen antippen: umklappen' : ''}
           </p>
         )}
       </div>
@@ -295,6 +302,7 @@ function buildScene(model: Model) {
     const mats = [c.colors.x, c.colors.x, c.colors.z, c.colors.z, c.colors.y, c.colors.y].map(basic);
     const mesh = new THREE.Mesh(box, mats);
     mesh.userData.solid = true;
+    if (c.turned) mesh.userData.turnedCube = c.id;
     const p = toThree([c.min[0] + 0.5, c.min[1] + 0.5, c.min[2] + 0.5]);
     mesh.position.copy(p);
     const edges = lineMat(c.stroke);
@@ -335,6 +343,7 @@ function buildScene(model: Model) {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.userData.solid = true;
     if (w.flippable) mesh.userData.flipId = w.id;
+    if (w.cornerOf) mesh.userData.cornerOf = w.cornerOf;
     const edges = lineMat(w.stroke);
     const lines = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), edges);
     group.add(mesh, lines);
