@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { type Doc, FORMATS, type FormatId, type GridStyle, deleteDoc, fromFile, listDocs, newDoc, saveDoc } from '../model/doc';
+import { EXAMPLES } from '../model/examples';
 import { openFile } from './exporting';
 import * as I from './icons';
 import { docSvg } from './render';
@@ -13,8 +14,9 @@ function Thumb({ doc }: { doc: Doc }) {
 
 export function Gallery({ onOpen }: { onOpen(d: Doc): void }) {
   const [docs, setDocs] = useState(listDocs);
-  const [creating, setCreating] = useState(docs.length === 0);
+  const [creating, setCreating] = useState(false);
   const [msg, setMsg] = useState('');
+  const examples = useMemo(() => EXAMPLES.map((e) => e.make()), []);
 
   const load = async () => {
     const text = await openFile();
@@ -75,10 +77,32 @@ export function Gallery({ onOpen }: { onOpen(d: Doc): void }) {
           Bild aus Datei öffnen
         </button>
       </p>
+      <h2 className="section">Beispiele zum Entdecken</h2>
+      <p className="section-hint">Öffne ein Beispiel, schau es dir in 3D an und bau weiter. Du bekommst deine eigene Kopie.</p>
+      <div className="cards">
+        {examples.map((d, k) => (
+          <div key={EXAMPLES[k].key} className="card example">
+            <button
+              className="thumb"
+              onClick={() => {
+                const copy = EXAMPLES[k].make();
+                saveDoc(copy);
+                onOpen(copy);
+              }}
+              aria-label={'Beispiel öffnen: ' + d.name}
+            >
+              <Thumb doc={d} />
+            </button>
+            <div className="card-foot">
+              <span className="card-name">{d.name}</span>
+            </div>
+          </div>
+        ))}
+      </div>
       {creating && (
         <NewDialog
           count={docs.length}
-          onCancel={docs.length ? () => setCreating(false) : undefined}
+          onCancel={() => setCreating(false)}
           onCreate={(d) => {
             saveDoc(d);
             onOpen(d);

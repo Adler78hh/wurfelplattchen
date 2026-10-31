@@ -940,6 +940,22 @@ button:disabled {
   white-space: nowrap;
 }
 
+.section {
+  max-width: 1100px;
+  margin: 36px auto 4px;
+  font-size: 1.3rem;
+}
+
+.section-hint {
+  max-width: 1100px;
+  margin: 0 auto 14px;
+  color: var(--muted);
+}
+
+.card.example {
+  border-style: dotted;
+}
+
 .center {
   text-align: center;
   margin-top: 24px;

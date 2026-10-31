@@ -7,7 +7,8 @@ Rauten und Dreiecken.
 ## Bedienung
 
 - **Galerie:** alle Bilder im Browser, neues Bild (A4 quer, A4 hoch, Quadrat; Punkte oder Dreiecke),
-  Bild aus Datei öffnen.
+  Bild aus Datei öffnen. Dazu **Beispiele zum Entdecken** (Treppe, Würfelstadt, Kippstern, unmögliches
+  Dreieck, Würfel oder Ecke?, Würfelmuster); Antippen legt eine eigene Kopie an.
 - **Würfelplättchen:** das zentrale Bauteil. Ein neues Plättchen wird automatisch richtig gestapelt:
   Es liegt an Würfeln an, steht auf Boden oder Würfel und verschwindet hinter Würfeln, die davor stehen. Drei Rauten: Der Deckel bekommt die gewählte Farbe, links einen helleren und rechts einen dunkleren Ton.
   Ein zweiter Druck auf den Würfel-Knopf dreht das Plättchen um 60° (liegende Raute oben oder unten). Ein ausgewähltes Plättchen zeigt unter der
@@ -48,7 +49,11 @@ Der Knopf **3D** zeigt die Zeichnung als Körper. Ein Finger dreht, zwei Finger 
   Antwort wird es eine Ecke. Umwählen in der Auswahl-Zeile „In 3D“ oder durch Antippen in 3D.
 - Plättchen, die sich im Bild überlappen oder berühren, berühren sich auch im Raum; was im Bild vorne
   liegt, ist auch im Raum vorne. Jedes Gebäude steht auf dem Boden.
-- Widersprechen sich diese Wünsche (unmögliche Figur), wird an einer Stelle aufgeschnitten.
+- Fest sind: Würfel, deren Plättchen sich so überlappen, dass sie eine Seite teilen könnten, berühren
+  sich; gemeinsame Kanten mit Rauten und gezeichneten Flächen treffen sich. Alles andere (nur an einer
+  Kante berührend, nebeneinander, gemeinsame Ecke) ist ein Wunsch, der genutzt wird, wo er passt.
+- Unmöglich ist eine Figur, wenn feste Verbindungen sich widersprechen oder es keine Anordnung gibt, in
+  der jeder oben gezeichnete Würfel auch näher am Betrachter steht. Markiert wird die Stelle des Tricks.
 - Lose Rauten werden dünne Wände: jede ist eine Seite eines gedachten Würfels. Rauten, die sich mit
   anderen Rauten oder Würfeln eine Kante teilen, stoßen im Raum genau an dieser Kante zusammen. Ein
   geteiltes Plättchen bleibt so eine Würfelecke aus drei Wänden, der Deckel bleibt oben.

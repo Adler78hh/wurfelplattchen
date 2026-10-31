@@ -366,7 +366,7 @@ export function planeChoice(shapes: Shape[], id: string): PlaneChoice | null {
 function placePieces(shapes: Shape[]): Placed {
   const pieces = piecesOf(shapes);
   const n = pieces.length;
-  const edges: { a: number; b: number; w: number; strength: number }[] = [];
+  const edges: { a: number; b: number; w: number; strength: number; front?: boolean }[] = [];
   const isCube = (p: Piece) => !!p.plate && !p.corner;
 
   // Two cubes: touching in the drawing → touching in space, the one drawn on top in front.
@@ -381,8 +381,11 @@ function placePieces(shapes: Shape[]): Placed {
     for (const v of NEAR) {
       for (const b of byCentre.get(key([pieces[a].c[0] + v[0], pieces[a].c[1] + v[1]])) ?? []) {
         if (b <= a) continue;
-        const d = offsetFor(v, pieces[b].order > pieces[a].order);
-        if (d) edges.push({ a, b, w: d[2], strength: norm2(v) });
+        const front = pieces[b].order > pieces[a].order;
+        const d = offsetFor(v, front);
+        // Overlapping plates whose cubes would share a face are the surest hint; touching only along
+        // an edge (|d|² = 2) is less sure – such cubes may also stand further apart.
+        if (d) edges.push({ a, b, w: d[2], strength: norm2(v) === 1 ? (len2(d) === 1 ? 1 : 2.5) : 3, front: norm2(v) === 1 ? front : undefined });
       }
     }
   }
@@ -410,22 +413,75 @@ function placePieces(shapes: Shape[]): Placed {
         // but a clash there is no contradiction.
         else if (ws.length >= 1) edges.push({ a, b, w: ws[0], strength: 4 });
       }
-  // Overlapping cubes first, then pieces sharing an edge, then cubes side by side, then single corners.
+  // Cubes sharing a face first, then pieces sharing an edge, other overlapping cubes, cubes side by
+  // side, and single shared corners last.
   edges.sort((p, q) => p.strength - q.strength || p.a - q.a || p.b - q.b);
+  // Firm: cubes whose plates overlap so that they can share a face touch face to face, and shared
+  // edges with rhombs or drawn shapes meet exactly. A clash there is an impossible figure (like the
+  // Penrose triangle) – unless the cubes are merely placed apart with front and back still right.
+  // Everything else is only a wish, used where it fits: overlapping cubes that would only touch along
+  // an edge, plates side by side, single shared corners.
   const dsu = new Depths(n);
   const bad = new Set<number>();
+  const soft = edges.filter((e) => e.strength > 2);
+  const held = new Set<(typeof edges)[number]>();
   for (const e of edges) {
-    if (!dsu.join(e.a, e.b, e.w) && e.strength < 4) {
-      bad.add(e.a);
-      bad.add(e.b);
+    if (e.strength > 2) continue;
+    if (dsu.join(e.a, e.b, e.w)) {
+      held.add(e);
+      continue;
     }
+    if (e.front !== undefined) {
+      const [, pa] = dsu.find(e.a);
+      const [, pb] = dsu.find(e.b);
+      const v = sub(pieces[e.b].c, pieces[e.a].c);
+      // Depth along the line of sight of a cube at lattice point c: c.i + 2·c.j + 3·t.
+      if (v[0] + 2 * v[1] + 3 * (pb - pa) > 0 === e.front) continue;
+    }
+    bad.add(e.a);
+    bad.add(e.b);
   }
-  // Every connected group stands on the ground: its lowest point at Z = 0.
+  // Soft wishes, where they fit.
+  for (const e of soft) dsu.join(e.a, e.b, e.w);
   const found = pieces.map((_, i) => dsu.find(i));
-  const lowest = (i: number) => found[i][1] + Math.min(...pieces[i].delta.values());
+  const t = found.map(([, off]) => off);
+
+  // Is there any arrangement at all in which every cube drawn on top of another is nearer to the
+  // viewer and all firm links hold? As differences t[b] − t[a] ≥ L; a set of demands that goes round
+  // in a circle and adds up to more than nothing can never hold – an impossible figure. (Only checked,
+  // the places above stay as they are. Depth of a cube at lattice point c: c.i + 2·c.j + 3·t.)
+  const need: { a: number; b: number; L: number }[] = [];
+  for (const e of edges) {
+    if (e.front !== undefined) {
+      const [x, y] = e.front ? [e.b, e.a] : [e.a, e.b]; // x is drawn on top of y
+      const v = sub(pieces[x].c, pieces[y].c);
+      need.push({ a: y, b: x, L: Math.ceil((1 - v[0] - 2 * v[1]) / 3) });
+    }
+    if (held.has(e)) need.push({ a: e.a, b: e.b, L: e.w }, { a: e.b, b: e.a, L: -e.w });
+  }
+  const probe = new Array(n).fill(0);
+  // Where a firm link clashed, that is the place of the trick – mark only there; otherwise the
+  // whole circle of demands.
+  const firmClash = bad.size > 0;
+  for (let round = 0; round <= n; round++) {
+    let changed = false;
+    for (const d of need)
+      if (probe[d.b] < probe[d.a] + d.L) {
+        probe[d.b] = probe[d.a] + d.L;
+        changed = true;
+        if (round === n && !firmClash) {
+          bad.add(d.a);
+          bad.add(d.b);
+        }
+      }
+    if (!changed) break;
+  }
+
+  // Every connected group stands on the ground: its lowest point at Z = 0.
+  const lowest = (i: number) => t[i] + Math.min(...pieces[i].delta.values());
   const low = new Map<number, number>();
   found.forEach(([r], i) => low.set(r, Math.min(low.get(r) ?? Infinity, lowest(i))));
-  return { pieces, t: found.map(([r, off]) => off - low.get(r)!), bad };
+  return { pieces, t: t.map((x, i) => x - low.get(found[i][0])!), bad };
 }
 
 // ------------------------------------------------------------ walls
