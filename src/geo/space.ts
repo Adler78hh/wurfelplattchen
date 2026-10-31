@@ -13,8 +13,8 @@
 // Everything else becomes a thin wall: loose rhombs in their natural plane (a cube face standing
 // alone), all other shapes as thin plates facing the viewer, placed next to the nearest cube.
 
-import { type LP, type RhombType, norm2, rhombType, same, sub } from './lattice';
-import type { Shape } from './shapes';
+import { type LP, type RhombType, key, norm2, rhombType, same, sub } from './lattice';
+import { type Shape, findCandidates } from './shapes';
 
 export type V3 = [number, number, number];
 
@@ -130,17 +130,98 @@ class Depths {
   }
 }
 
-function placeCubes(shapes: Shape[]): { cubes: Cube3[]; plates: Plate[] } {
-  const plates = shapes.map((s, i) => plateOf(s, i)).filter((p): p is Plate => !!p);
-  const n = plates.length;
+/**
+ * A piece whose depth is solved: a cube plate, or a loose rhomb read as one visible face of a unit
+ * cube (its "virtual" cube). c is the lattice point of the cube's space diagonal; every drawn
+ * vertex p lies at space point onLine(p, t + delta(p)), t being the Z of the cube's lowest corner.
+ */
+interface Piece {
+  shape: Shape;
+  order: number;
+  c: LP;
+  pts: LP[];
+  delta: Map<string, number>;
+  plate: Plate | null;
+  rhomb: RhombType | -1;
+}
+
+// Z offset of the cube corner seen at hexagon corner R0 … R5 (up, up-right, down-right, down, down-left, up-left).
+const RING_DELTA = [1, 1, 0, 0, 0, 1];
+const RING_VEC: LP[] = [
+  [0, -1],
+  [1, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 1],
+  [-1, 0],
+];
+
+function deltas(c: LP, pts: LP[], centre: number): Map<string, number> | null {
+  const m = new Map<string, number>();
+  for (const p of pts) {
+    const v = sub(p, c);
+    if (v[0] === 0 && v[1] === 0) m.set(key(p), centre);
+    else {
+      const k = RING_VEC.findIndex((r) => same(r, v));
+      if (k < 0) return null;
+      m.set(key(p), RING_DELTA[k]);
+    }
+  }
+  return m;
+}
+
+function pieceOf(s: Shape, order: number): Piece | null {
+  const plate = plateOf(s, order);
+  if (plate) {
+    const pts = s.parts.flatMap((p) => p.pts);
+    // Lid on top (front corner in the middle) or turned by 60° (back corner in the middle).
+    const lid = s.parts.find((p) => rhombType(p.pts) === 0)!;
+    const front = lid.pts.some((p) => same(sub(p, plate.c), [0, -1]));
+    const delta = deltas(plate.c, pts, front ? 1 : 0);
+    return delta ? { shape: s, order, c: plate.c, pts, delta, plate, rhomb: -1 } : null;
+  }
+  if (s.kind !== 'rhomb') return null;
+  const pts = s.parts[0].pts;
+  const t = rhombType(pts);
+  if (t === -1) return null;
+  // The obtuse corner that is the front corner of its cube: lid → lower one, right face → left one,
+  // left face → right one.
+  const [a, b] = norm2(sub(pts[2], pts[0])) === 1 ? [pts[0], pts[2]] : [pts[1], pts[3]];
+  const c = t === 0 ? (a[1] > b[1] ? a : b) : t === 1 ? (a[0] < b[0] ? a : b) : a[0] > b[0] ? a : b;
+  const delta = deltas(c, pts, 1);
+  return delta ? { shape: s, order, c, pts, delta, plate: null, rhomb: t } : null;
+}
+
+interface Placed {
+  pieces: Piece[];
+  t: number[];
+  bad: Set<number>;
+}
+
+function placePieces(shapes: Shape[]): Placed {
+  const pieces = shapes.map((s, i) => pieceOf(s, i)).filter((p): p is Piece => !!p);
+  const n = pieces.length;
   const edges: { a: number; b: number; w: number; strength: number }[] = [];
   for (let a = 0; a < n; a++)
     for (let b = a + 1; b < n; b++) {
-      const v = sub(plates[b].c, plates[a].c);
-      const d = offsetFor(v, plates[b].order > plates[a].order);
-      if (d) edges.push({ a, b, w: d[2], strength: norm2(v) });
+      const A = pieces[a];
+      const B = pieces[b];
+      if (A.plate && B.plate) {
+        // Two cubes: touching in the drawing → touching in space, the one drawn on top in front.
+        const v = sub(B.c, A.c);
+        const d = offsetFor(v, B.order > A.order);
+        if (d) edges.push({ a, b, w: d[2], strength: norm2(v) });
+        continue;
+      }
+      // With a loose rhomb: shared corners of the drawing must meet in space.
+      const ws: number[] = [];
+      for (const [k, da] of A.delta) {
+        const db = B.delta.get(k);
+        if (db !== undefined) ws.push(da - db);
+      }
+      if (ws.length >= 2 && ws.every((w) => w === ws[0])) edges.push({ a, b, w: ws[0], strength: 2 });
     }
-  // Overlapping plates (face to face) first, then plates that only share an edge.
+  // Overlapping cubes first, then pieces sharing an edge with a rhomb, then cubes side by side.
   edges.sort((p, q) => p.strength - q.strength || p.a - q.a || p.b - q.b);
   const dsu = new Depths(n);
   const bad = new Set<number>();
@@ -150,21 +231,12 @@ function placeCubes(shapes: Shape[]): { cubes: Cube3[]; plates: Plate[] } {
       bad.add(e.b);
     }
   }
-  // Depth per plate, then every building stands on the ground (lowest cube at Z = 0).
-  const t = plates.map((_, i) => dsu.find(i));
+  // Every connected group stands on the ground: its lowest point at Z = 0.
+  const found = pieces.map((_, i) => dsu.find(i));
+  const lowest = (i: number) => found[i][1] + Math.min(...pieces[i].delta.values(), pieces[i].plate ? 0 : Infinity);
   const low = new Map<number, number>();
-  t.forEach(([r, off]) => low.set(r, Math.min(low.get(r) ?? Infinity, off)));
-  const cubes = plates.map((p, i): Cube3 => {
-    const [r, off] = t[i];
-    return {
-      id: p.shape.id,
-      min: onLine(p.c[0], p.c[1], off - low.get(r)!),
-      colors: p.colors,
-      stroke: p.shape.stroke,
-      impossible: bad.has(i),
-    };
-  });
-  return { cubes, plates };
+  found.forEach(([r], i) => low.set(r, Math.min(low.get(r) ?? Infinity, lowest(i))));
+  return { pieces, t: found.map(([r, off]) => off - low.get(r)!), bad };
 }
 
 // ------------------------------------------------------------ walls
@@ -177,51 +249,67 @@ const nearestT = (i: number, j: number, r: V3) => (dot(r, VIEW) - dot(onLine(i, 
 const BACK: Record<RhombType, V3> = { 0: [0, 0, -1], 1: [-1, 0, 0], 2: [0, -1, 0] };
 const VIEW_BACK: V3 = [-1 / Math.sqrt(3), -1 / Math.sqrt(3), -1 / Math.sqrt(3)];
 
-function wallOf(s: Shape, ref: V3): Wall3 {
-  const base = { id: s.id, stroke: s.stroke, width: s.width };
-  const pts = s.parts[0].pts;
-  if (s.kind === 'rhomb') {
-    const t = rhombType(pts);
-    if (t !== -1) {
-      // A lonely cube face: in the plane X, Y or Z = const, at the whole number nearest to the reference.
-      const [ci, cj] = centroid(pts);
-      const tc = nearestT(ci, cj, ref);
-      const axisValue = t === 0 ? Math.round(tc) : t === 1 ? Math.round(ci + cj + tc) : Math.round(cj + tc);
-      const tOf = (p: LP) => (t === 0 ? axisValue : t === 1 ? axisValue - p[0] - p[1] : axisValue - p[1]);
-      return { ...base, kind: 'face', pts: pts.map((p) => onLine(p[0], p[1], tOf(p))), back: BACK[t], fill: s.parts[0].fill, impossible: true };
-    }
-  }
-  // Everything else: a thin plate facing the viewer through the reference point.
-  const plate = (q: LP) => onLine(q[0], q[1], nearestT(q[0], q[1], ref));
-  if (s.kind === 'line') return { ...base, kind: 'line', pts: pts.map(plate), back: VIEW_BACK, fill: null, impossible: false };
-  return { ...base, kind: 'plate', pts: pts.map(plate), back: VIEW_BACK, fill: s.parts[0].fill, impossible: false };
+/** A loose rhomb: one face of its (virtual) cube, as a thin wall. */
+function faceWall(p: Piece, t: number, impossible: boolean): Wall3 {
+  const s = p.shape;
+  return {
+    id: s.id,
+    kind: 'face',
+    pts: p.pts.map((q) => onLine(q[0], q[1], t + p.delta.get(key(q))!)),
+    back: BACK[p.rhomb as RhombType],
+    fill: s.parts[0].fill,
+    stroke: s.stroke,
+    width: s.width,
+    impossible,
+  };
+}
+
+/** Any other shape: a thin plate facing the viewer through the reference point. */
+function plateWall(s: Shape, ref: V3): Wall3 {
+  const base = { id: s.id, stroke: s.stroke, width: s.width, back: VIEW_BACK, impossible: false };
+  const pts = s.parts[0].pts.map((q) => onLine(q[0], q[1], nearestT(q[0], q[1], ref)));
+  if (s.kind === 'line') return { ...base, kind: 'line', pts, fill: null };
+  return { ...base, kind: 'plate', pts, fill: s.parts[0].fill };
 }
 
 // ------------------------------------------------------------ model
 
 export function buildModel(shapes: Shape[]): Model {
-  const { cubes, plates } = placeCubes(shapes);
-  const centre = (c: Cube3): V3 => [c.min[0] + 0.5, c.min[1] + 0.5, c.min[2] + 0.5];
+  const { pieces, t, bad } = placePieces(shapes);
+  // Loose rhombs count as impossible walls, unless three of them form a whole cube corner.
+  const corner = new Set(findCandidates(shapes).flatMap((c) => c.ids));
+  const cubes: Cube3[] = [];
   const walls: Wall3[] = [];
+  const byId = new Map(pieces.map((p, i) => [p.shape.id, i]));
+  const centre = (i: number): V3 => {
+    const m = onLine(pieces[i].c[0], pieces[i].c[1], t[i]);
+    return [m[0] + 0.5, m[1] + 0.5, m[2] + 0.5];
+  };
   for (const s of shapes) {
-    if (s.kind === 'cube' && cubes.some((c) => c.id === s.id)) continue;
-    const pts = s.kind === 'cube' ? s.parts.flatMap((p) => p.pts) : s.parts[0].pts;
+    const i = byId.get(s.id);
+    if (i !== undefined) {
+      const p = pieces[i];
+      if (p.plate) cubes.push({ id: s.id, min: onLine(p.c[0], p.c[1], t[i]), colors: p.plate.colors, stroke: s.stroke, impossible: bad.has(i) });
+      else walls.push(faceWall(p, t[i], bad.has(i) || !corner.has(s.id)));
+      continue;
+    }
+    // Everything else stands next to the piece nearest in the drawing (or on the ground).
+    const pts = s.parts.flatMap((p) => p.pts);
     const [ci, cj] = centroid(pts);
-    // Reference: the cube nearest in the drawing, otherwise a point on the ground.
     let ref: V3 = onLine(ci, cj, 0);
     let best = Infinity;
-    plates.forEach((p, k) => {
+    pieces.forEach((p, k) => {
       const d = (p.c[0] - ci) ** 2 + (p.c[0] - ci) * (p.c[1] - cj) + (p.c[1] - cj) ** 2;
       if (d < best) {
         best = d;
-        ref = centre(cubes[k]);
+        ref = centre(k);
       }
     });
-    if (s.kind === 'cube') {
-      // A broken plate (should not happen): show its rhombs as walls.
-      s.parts.forEach((part, k) => walls.push(wallOf({ ...s, id: s.id + '-' + k, kind: 'rhomb', parts: [part] }, ref)));
+    if (s.kind === 'cube' || s.kind === 'rhomb') {
+      // A broken plate or odd rhomb (should not happen): show it as plates.
+      s.parts.forEach((part, k) => walls.push(plateWall({ ...s, id: s.id + '-' + k, kind: 'polygon', parts: [part] }, ref)));
     } else {
-      walls.push(wallOf(s, ref));
+      walls.push(plateWall(s, ref));
     }
   }
   return { cubes, walls };

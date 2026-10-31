@@ -175,7 +175,7 @@ export default function View3D({ name, shapes, onClose }: Props) {
             <button className="pill" onClick={() => api.current?.iso()} title="So drehen, wie es gezeichnet ist">
               <I.CubeIcon /> Wie gezeichnet
             </button>
-            <button className={'pill' + (mark ? ' on' : '')} onClick={() => setMark(!mark)} disabled={!impossibleCount} title="Unmögliche Teile hervorheben">
+            <button className={'pill' + (mark ? ' on' : '')} onClick={() => setMark(!mark)} disabled={!impossibleCount} title="Unmögliche Teile hervorheben: lose Rauten und Würfel, die nicht zusammenpassen">
               <I.MagicIcon /> Unmögliches{impossibleCount ? ` (${impossibleCount})` : ''}
             </button>
             <button className="round" onClick={() => api.current?.save()} aria-label="3D-Bild speichern" title="3D-Bild speichern">

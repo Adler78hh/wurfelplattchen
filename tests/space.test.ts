@@ -58,6 +58,7 @@ describe('space', () => {
     expect(m.walls).toHaveLength(1);
     const w = m.walls[0];
     expect(w.kind).toBe('face');
+    expect(w.impossible).toBe(true);
     expect(new Set(w.pts.map((p) => p[2])).size).toBe(1);
     for (let k = 0; k < 4; k++) expect(project(w.pts[k])).toEqual(rhombPts([6, 0], 0)[k]);
   });
@@ -72,5 +73,34 @@ describe('space', () => {
       expect(i).toBeCloseTo(tri.parts[0].pts[k][0]);
       expect(j).toBeCloseTo(tri.parts[0].pts[k][1]);
     });
+  });
+});
+
+describe('loose rhombs', () => {
+  it('a split cube plate keeps its three faces exactly where the cube was', async () => {
+    const { split } = await import('../src/geo/shapes');
+    for (const v of [0, 1] as const) {
+      const c = cube([3, 2], v);
+      const whole = buildModel([c]).cubes[0];
+      const parts = buildModel(split([c], [c.id]).shapes);
+      expect(parts.cubes).toHaveLength(0);
+      expect(parts.walls).toHaveLength(3);
+      // Every corner of the walls is a corner of the original cube.
+      for (const w of parts.walls)
+        for (const p of w.pts)
+          for (let k = 0; k < 3; k++) expect([whole.min[k], whole.min[k] + 1]).toContain(p[k]);
+      // The lid stays on top of the cube (for the turned plate: the bottom stays at the bottom).
+      const lid = parts.walls.find((w) => w.back[2] === -1)!;
+      expect(lid.pts.every((p) => p[2] === (v === 0 ? whole.min[2] + 1 : whole.min[2]))).toBe(true);
+      expect(parts.walls.some((w) => w.impossible)).toBe(false);
+    }
+  });
+
+  it('a rhomb sharing an edge with the lid continues the roof at the same height', () => {
+    const base = cube([3, 2]);
+    // Lid of the neighbour cube behind-left: shares the upper-left edge of the cube's lid.
+    const roof: Shape = { id: newId(), kind: 'rhomb', parts: [{ pts: [[2, 2], [1, 2], [2, 1], [3, 1]], fill: '#ffd166' }], stroke: null, width: 1 };
+    const m = buildModel([base, roof]);
+    expect(m.walls[0].pts.every((p) => p[2] === 1)).toBe(true);
   });
 });

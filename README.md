@@ -39,10 +39,14 @@ Der Knopf **3D** zeigt die Zeichnung als Körper. Ein Finger dreht, zwei Finger 
 - Plättchen, die sich im Bild überlappen oder berühren, berühren sich auch im Raum; was im Bild vorne
   liegt, ist auch im Raum vorne. Jedes Gebäude steht auf dem Boden.
 - Widersprechen sich diese Wünsche (unmögliche Figur), wird an einer Stelle aufgeschnitten.
-- Lose Rauten werden dünne Wände in ihrer Raumrichtung; Dreiecke, Sechsecke und Streckenzüge werden
-  dünne Platten, die von vorne genau wie die Zeichnung aussehen. Sie stehen beim nächsten Würfel.
+- Lose Rauten werden dünne Wände: jede ist eine Seite eines gedachten Würfels. Rauten, die sich mit
+  anderen Rauten oder Würfeln eine Kante teilen, stoßen im Raum genau an dieser Kante zusammen. Ein
+  geteiltes Plättchen bleibt so eine Würfelecke aus drei Wänden, der Deckel bleibt oben.
+- Dreiecke, Sechsecke und Streckenzüge werden dünne Platten, die von vorne genau wie die Zeichnung
+  aussehen. Sie stehen beim nächsten Würfel.
 - **Wie gezeichnet** dreht zurück in die Blickrichtung der Zeichnung.
-- **Unmögliches** hebt die aufgeschnittenen Würfel und die losen Rauten hervor.
+- **Unmögliches** hebt Würfel und Rauten hervor, die nicht zusammenpassen, und lose Rauten, die keine
+  ganze Würfelecke bilden.
 - Die aktuelle Ansicht lässt sich als PNG speichern.
 
 Die 3D-Grafik nutzt three.js 0.162 (die letzte Version mit WebGL 1, damit sie auch auf älteren iPads läuft)
