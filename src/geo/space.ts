@@ -29,6 +29,8 @@ export interface Cube3 {
   impossible: boolean;
   /** Drawn as a turned plate (seen from below): tapping it in 3D can turn it into a corner. */
   turned: boolean;
+  /** Stroke width (index into WIDTHS). */
+  width: number;
 }
 
 export interface Wall3 {
@@ -500,7 +502,7 @@ export function buildModel(shapes: Shape[]): Model {
       } else if (p.plate) {
         const lid = s.parts.find((q) => rhombType(q.pts) === 0);
         const turned = !!lid && lid.pts.some((q) => same(sub(q, p.c), [0, 1]));
-        cubes.push({ id: s.id, min: onLine(p.c[0], p.c[1], t[i]), colors: p.plate.colors, stroke: s.stroke, impossible: bad.has(i), turned });
+        cubes.push({ id: s.id, min: onLine(p.c[0], p.c[1], t[i]), colors: p.plate.colors, stroke: s.stroke, impossible: bad.has(i), turned, width: s.width });
       }
       else walls.push(faceWall(p, t[i], bad.has(i) || (!p.drawn && !corner.has(s.id))));
       continue;

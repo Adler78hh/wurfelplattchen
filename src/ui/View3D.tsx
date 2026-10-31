@@ -7,6 +7,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { type Model, type V3, bounds, buildModel } from '../geo/space';
 import type { Shape } from '../geo/shapes';
 import * as I from './icons';
@@ -95,6 +98,7 @@ export default function View3D({ name, shapes, onClose, onFlip, onReading, onAdd
     const resize = () => {
       const r = el.getBoundingClientRect();
       renderer.setSize(Math.max(1, r.width), Math.max(1, r.height));
+      for (const m of (c.content?.userData.lineMats ?? []) as LineMaterial[]) m.resolution.set(Math.max(1, r.width), Math.max(1, r.height));
       const aspect = Math.max(1, r.width) / Math.max(1, r.height);
       const half = (camera.userData.radius ?? 3) * 0.8;
       camera.left = -half * Math.max(1, aspect);
@@ -257,6 +261,8 @@ export default function View3D({ name, shapes, onClose, onFlip, onReading, onAdd
 
     c.scene.add(group);
     c.content = group;
+    const box = host.current?.getBoundingClientRect();
+    if (box) for (const m of group.userData.lineMats as LineMaterial[]) m.resolution.set(Math.max(1, box.width), Math.max(1, box.height));
     c.marks = marks;
     marks(markRef.current);
     c.centre.copy(centre);
@@ -350,14 +356,22 @@ function disposeTree(root: THREE.Object3D) {
 
 function buildScene(model: Model) {
   const group = new THREE.Group();
-  const marked: { mats: THREE.Material[]; edges: THREE.LineBasicMaterial; stroke: THREE.Color; impossible: boolean }[] = [];
+  const marked: { mats: THREE.Material[]; edges: LineMaterial; stroke: THREE.Color; impossible: boolean }[] = [];
+  const lineMats: LineMaterial[] = [];
 
   const basic = (color: string) => new THREE.MeshBasicMaterial({ color: new THREE.Color(color), polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 });
-  const lineMat = (color: string | null) => new THREE.LineBasicMaterial({ color: new THREE.Color(color ?? '#4a3a2e'), transparent: true, opacity: color ? 1 : 0 });
+  // Thick outlines (in screen pixels) like the strokes of the drawing; plain WebGL lines are 1 px.
+  const lineMat = (color: string | null, width = 1) => {
+    const m = new LineMaterial({ color: new THREE.Color(color ?? '#4a3a2e').getHex(), linewidth: [1.4, 2.4, 3.8][width] ?? 2.4, transparent: true, opacity: color ? 1 : 0 });
+    m.resolution.set(window.innerWidth, window.innerHeight);
+    lineMats.push(m);
+    return m;
+  };
+  const fat = (edges: THREE.BufferGeometry) => new LineSegmentsGeometry().setPositions(edges.getAttribute('position').array as Float32Array);
 
   // Cubes: unlit colours, so the view "wie gezeichnet" looks exactly like the drawing.
   const box = new THREE.BoxGeometry(1, 1, 1);
-  const boxEdges = new THREE.EdgesGeometry(box);
+  const boxEdges = fat(new THREE.EdgesGeometry(box));
   for (const c of model.cubes) {
     // BoxGeometry face order: +x, −x, +y, −y, +z, −z  (three.js y = space Z, z = space Y).
     const mats = [c.colors.x, c.colors.x, c.colors.z, c.colors.z, c.colors.y, c.colors.y].map(basic);
@@ -368,8 +382,8 @@ function buildScene(model: Model) {
     if (c.turned) mesh.userData.turnedCube = c.id;
     const p = toThree([c.min[0] + 0.5, c.min[1] + 0.5, c.min[2] + 0.5]);
     mesh.position.copy(p);
-    const edges = lineMat(c.stroke);
-    const lines = new THREE.LineSegments(boxEdges, edges);
+    const edges = lineMat(c.stroke, c.width);
+    const lines = new LineSegments2(boxEdges, edges);
     lines.position.copy(p);
     group.add(mesh, lines);
     marked.push({ mats, edges, stroke: edges.color.clone(), impossible: c.impossible });
@@ -407,8 +421,8 @@ function buildScene(model: Model) {
     mesh.userData.solid = true;
     if (w.flippable) mesh.userData.flipId = w.id;
     if (w.cornerOf) mesh.userData.cornerOf = w.cornerOf;
-    const edges = lineMat(w.stroke);
-    const lines = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), edges);
+    const edges = lineMat(w.stroke, w.width);
+    const lines = new LineSegments2(fat(new THREE.EdgesGeometry(geo, 30)), edges);
     group.add(mesh, lines);
     marked.push({ mats: [mat], edges, stroke: edges.color.clone(), impossible: w.impossible });
   }
@@ -433,6 +447,7 @@ function buildScene(model: Model) {
       m.edges.opacity = hot ? 1 : fade ? base[k].edge * 0.15 : base[k].edge;
     });
   };
+  group.userData.lineMats = lineMats;
   return { group, marks };
 }
 
