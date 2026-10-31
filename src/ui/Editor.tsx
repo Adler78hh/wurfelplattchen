@@ -503,8 +503,16 @@ export function Editor({ initial, onExit }: Props) {
 
   // ---------------------------------------------------------------- UI pieces
 
+  // Pressing the rhomb or cube button again turns the shape by 60° (clockwise).
+  const RHOMB_NEXT: Record<RhombType, RhombType> = { 0: 2, 2: 1, 1: 0 };
+  const pressTool = (t: Tool) => {
+    if (t === tool && t === 'rhomb') setRhombT(RHOMB_NEXT[rhombT]);
+    else if (t === tool && t === 'cube') setCubeV(cubeV ? 0 : 1);
+    else setTool(t);
+  };
+
   const toolBtn = (t: Tool, icon: ReactNode, label: string) => (
-    <button key={t} className={'tool' + (tool === t ? ' on' : '')} onClick={() => setTool(t)} aria-label={label} title={label}>
+    <button key={t} className={'tool' + (tool === t ? ' on' : '')} onClick={() => pressTool(t)} aria-label={label} title={label}>
       {icon}
     </button>
   );
@@ -672,15 +680,6 @@ export function Editor({ initial, onExit }: Props) {
           </div>
 
           <div className="row actions">
-            {(tool === 'rhomb' || tool === 'cube') && (
-              <button
-                className="pill"
-                onClick={() => (tool === 'rhomb' ? setRhombT(((rhombT + 1) % 3) as RhombType) : setCubeV(cubeV ? 0 : 1))}
-                title="Lage drehen"
-              >
-                <I.RotateIcon /> Drehen
-              </button>
-            )}
             <button className={'pill merge' + (active ? ' hot' : '')} disabled={!active} onClick={doMerge} title="Drei Rauten zu einem Würfelplättchen verschmelzen">
               <I.MergeIcon /> Verschmelzen
             </button>

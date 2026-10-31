@@ -9,9 +9,10 @@ Rauten und Dreiecken.
 - **Galerie:** alle Bilder im Browser, neues Bild (A4 quer, A4 hoch, Quadrat; Raster fein/mittel/grob;
   Punkte oder Dreiecke), Bild aus Datei öffnen.
 - **Würfelplättchen:** das zentrale Bauteil. Drei Rauten, automatisch hell, mittel und dunkel schattiert.
-  Mit *Drehen* liegt die liegende Raute oben oder unten. Ein ausgewähltes Plättchen zeigt unter der
+  Ein zweiter Druck auf den Würfel-Knopf dreht das Plättchen um 60° (liegende Raute oben oder unten). Ein ausgewähltes Plättchen zeigt unter der
   Zeichenfläche seine drei Seiten; jede lässt sich einzeln umfärben. Plättchen werden nicht wieder zerlegt.
-- **Raute, Dreieck, Sechseck:** genau eine Rasterzelle groß. Die Raute dreht sich in drei Lagen.
+- **Raute, Dreieck, Sechseck:** genau eine Rasterzelle groß. Jeder weitere Druck auf den Rauten-Knopf
+  dreht die Raute um 60°; der Knopf zeigt die aktuelle Lage.
 - **Verschmelzen:** Liegen drei lose Rauten zu einem Würfel zusammen, leuchtet ihr Rand und der Knopf
   *Verschmelzen* wird grün. Gehört eine Raute zu zwei möglichen Würfeln, entscheidet das Antippen der
   Raute (näher an der gewünschten Würfelmitte) mit dem Auswahlwerkzeug.
