@@ -110,6 +110,22 @@ export function offsetFor(v: LP, inFront: boolean): V3 | null {
   return best;
 }
 
+/** Centre offsets of plates that overlap (distance 1) or share an edge (distance √3). */
+const NEAR: LP[] = [
+  [0, -1],
+  [1, -1],
+  [1, 0],
+  [0, 1],
+  [-1, 1],
+  [-1, 0],
+  [1, 1],
+  [2, -1],
+  [1, -2],
+  [-1, -1],
+  [-2, 1],
+  [-1, 2],
+];
+
 /** Union-find that keeps the depth difference to the root. */
 class Depths {
   parent: number[];
@@ -282,14 +298,34 @@ function fits(a: Piece, b: Piece): number {
  * The planes that fit a hand-drawn shape best, best first: most edges that are cube edges, then
  * most corners meeting cube and rhomb edges. More than one: a tipping figure – both readings work.
  */
-function bestPlanes(s: Shape, order: number, fixed: Piece[]): { pieces: Piece[]; options: RhombType[] } {
+/** Which pieces have a corner at each lattice point – so neighbours are found without comparing all pairs. */
+function vertexIndex(pieces: Piece[]): Map<string, number[]> {
+  const m = new Map<string, number[]>();
+  pieces.forEach((p, i) => {
+    for (const k of p.delta.keys()) {
+      const list = m.get(k);
+      if (list) list.push(i);
+      else m.set(k, [i]);
+    }
+  });
+  return m;
+}
+
+/** Pieces of `fixed` that share a corner with p. */
+function touching(p: Piece, fixed: Piece[], index: Map<string, number[]>): Piece[] {
+  const seen = new Set<number>();
+  for (const k of p.delta.keys()) for (const i of index.get(k) ?? []) seen.add(i);
+  return [...seen].map((i) => fixed[i]);
+}
+
+function bestPlanes(s: Shape, order: number, fixed: Piece[], index = vertexIndex(fixed)): { pieces: Piece[]; options: RhombType[] } {
   const pts = s.parts[0].pts;
   const score = planeScores(pts, s.kind !== 'line');
   const top = Math.max(...score);
   const tied = ([0, 1, 2] as RhombType[]).filter((k) => score[k] > top - 1e-9);
   const cands = tied.map((plane) => {
     const piece = drawnPiece(s, order, plane)!;
-    return { plane, piece, fit: fixed.reduce((sum, f) => sum + fits(piece, f), 0) };
+    return { plane, piece, fit: touching(piece, fixed, index).reduce((sum, f) => sum + fits(piece, f), 0) };
   });
   const bestFit = Math.max(...cands.map((c) => c.fit));
   const best = cands.filter((c) => c.fit === bestFit);
@@ -300,8 +336,9 @@ function bestPlanes(s: Shape, order: number, fixed: Piece[]): { pieces: Piece[];
 function piecesOf(shapes: Shape[]): Piece[] {
   const pieces = shapes.map((s, i) => pieceOf(s, i));
   const fixed = pieces.filter((p): p is Piece => !!p && !p.drawn);
+  const index = vertexIndex(fixed);
   return pieces
-    .map((p, i) => (!p || !p.drawn || shapes[i].plane !== undefined ? p : bestPlanes(shapes[i], i, fixed).pieces[0]))
+    .map((p, i) => (!p || !p.drawn || shapes[i].plane !== undefined ? p : bestPlanes(shapes[i], i, fixed, index).pieces[0]))
     .filter((p): p is Piece => !!p);
 }
 
@@ -328,28 +365,49 @@ function placePieces(shapes: Shape[]): Placed {
   const pieces = piecesOf(shapes);
   const n = pieces.length;
   const edges: { a: number; b: number; w: number; strength: number }[] = [];
-  for (let a = 0; a < n; a++)
-    for (let b = a + 1; b < n; b++) {
-      const A = pieces[a];
-      const B = pieces[b];
-      if (A.plate && B.plate && !A.corner && !B.corner) {
-        // Two cubes: touching in the drawing → touching in space, the one drawn on top in front.
-        const v = sub(B.c, A.c);
-        const d = offsetFor(v, B.order > A.order);
+  const isCube = (p: Piece) => !!p.plate && !p.corner;
+
+  // Two cubes: touching in the drawing → touching in space, the one drawn on top in front.
+  const byCentre = new Map<string, number[]>();
+  pieces.forEach((p, i) => {
+    if (!isCube(p)) return;
+    const k = key(p.c);
+    byCentre.set(k, [...(byCentre.get(k) ?? []), i]);
+  });
+  for (let a = 0; a < n; a++) {
+    if (!isCube(pieces[a])) continue;
+    for (const v of NEAR) {
+      for (const b of byCentre.get(key([pieces[a].c[0] + v[0], pieces[a].c[1] + v[1]])) ?? []) {
+        if (b <= a) continue;
+        const d = offsetFor(v, pieces[b].order > pieces[a].order);
         if (d) edges.push({ a, b, w: d[2], strength: norm2(v) });
-        continue;
       }
-      // With a rhomb or drawn shape: shared corners of the drawing must meet in space.
-      const ws: number[] = [];
-      for (const [k, da] of A.delta) {
-        const db = B.delta.get(k);
-        if (db !== undefined) ws.push(da - db);
-      }
-      if (ws.length >= 2 && ws.every((w) => w === ws[0])) edges.push({ a, b, w: ws[0], strength: 2 });
-      // Touching in one corner only (or an edge that cannot meet in this plane): hold on at a corner,
-      // but a clash there is no contradiction.
-      else if (ws.length >= 1) edges.push({ a, b, w: ws[0], strength: 4 });
     }
+  }
+
+  // With a rhomb, a corner or a drawn shape: shared corners of the drawing must meet in space.
+  const done = new Set<string>();
+  for (const list of vertexIndex(pieces).values())
+    for (let x = 0; x < list.length; x++)
+      for (let y = x + 1; y < list.length; y++) {
+        const a = Math.min(list[x], list[y]);
+        const b = Math.max(list[x], list[y]);
+        const A = pieces[a];
+        const B = pieces[b];
+        if (isCube(A) && isCube(B)) continue;
+        const pair = a + ',' + b;
+        if (done.has(pair)) continue;
+        done.add(pair);
+        const ws: number[] = [];
+        for (const [k, da] of A.delta) {
+          const db = B.delta.get(k);
+          if (db !== undefined) ws.push(da - db);
+        }
+        if (ws.length >= 2 && ws.every((w) => w === ws[0])) edges.push({ a, b, w: ws[0], strength: 2 });
+        // Touching in one corner only (or an edge that cannot meet in this plane): hold on at a corner,
+        // but a clash there is no contradiction.
+        else if (ws.length >= 1) edges.push({ a, b, w: ws[0], strength: 4 });
+      }
   // Overlapping cubes first, then pieces sharing an edge, then cubes side by side, then single corners.
   edges.sort((p, q) => p.strength - q.strength || p.a - q.a || p.b - q.b);
   const dsu = new Depths(n);

@@ -215,3 +215,22 @@ describe('star with a turned plate', () => {
     expect(corner.some((w) => w.impossible)).toBe(false);
   });
 });
+
+describe('speed', () => {
+  it('handles a big painted picture quickly', () => {
+    const shapes: Shape[] = [];
+    for (let i = 0; i < 30; i++)
+      for (let j = 0; j < 12; j++)
+        for (const k of [0, 1] as const) {
+          const pts: LP[] = k === 0 ? [[i, j], [i + 1, j], [i, j + 1]] : [[i + 1, j], [i + 1, j + 1], [i, j + 1]];
+          shapes.push({ id: `t${i}-${j}-${k}`, kind: 'triangle', parts: [{ pts, fill: '#a58bd8' }], stroke: null, width: 1 });
+        }
+    for (let i = 0; i < 20; i++) for (let j = 0; j < 5; j++) shapes.push(cube([40 + 2 * i, 3 * j - i]));
+    const t0 = performance.now();
+    const m = buildModel(shapes);
+    const ms = performance.now() - t0;
+    expect(m.cubes).toHaveLength(100);
+    expect(m.walls).toHaveLength(720);
+    expect(ms).toBeLessThan(1500);
+  });
+});
