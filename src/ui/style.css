@@ -406,6 +406,11 @@ button:disabled {
   background: var(--cream);
 }
 
+.tool.danger:not(:disabled) {
+  color: var(--danger);
+  border-color: #f1c4bf;
+}
+
 .tool.on {
   background: var(--petrol);
   border-color: var(--petrol);
@@ -490,6 +495,17 @@ button:disabled {
 @media (max-aspect-ratio: 1/1) {
   .work {
     flex-direction: column;
+  }
+  .row.tools {
+    gap: 6px;
+  }
+  .row.tools .tool {
+    width: 54px;
+    height: 56px;
+    border-radius: 18px;
+  }
+  .row.tools .sep {
+    width: 2px;
   }
   .panel {
     width: auto;

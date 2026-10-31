@@ -700,6 +700,13 @@ export function Editor({ initial, onExit }: Props) {
             {toolBtn('paint', <I.BrushIcon />, 'Ausmalen')}
             {toolBtn('erase', <I.EraserIcon />, 'Radiergummi')}
             {toolBtn('pick', <I.PipetteIcon />, 'Farbe aufnehmen')}
+            <span className="sep" />
+            <button className="tool" onClick={undo} disabled={!hist.current.past.length} aria-label="Rückgängig" title="Rückgängig">
+              <I.UndoIcon />
+            </button>
+            <button className="tool danger" onClick={deleteSel} disabled={!selShapes.length} aria-label="Auswahl löschen" title="Auswahl löschen">
+              <I.TrashIcon />
+            </button>
           </div>
 
           <div className="row actions">
@@ -736,9 +743,6 @@ export function Editor({ initial, onExit }: Props) {
               </button>
               <button className="pill" onClick={() => commit(reorder(shapes, selection, -1))}>
                 <I.BackLayerIcon /> Nach hinten
-              </button>
-              <button className="pill danger" onClick={deleteSel}>
-                <I.TrashIcon /> Löschen
               </button>
             </div>
           )}

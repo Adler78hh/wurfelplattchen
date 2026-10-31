@@ -21,7 +21,7 @@ Rauten und Dreiecken.
 - **Ausmalen:** Dreieckszellen antippen oder darüber wischen.
 - **Radiergummi**, **Farbe aufnehmen** (Pipette).
 - **Auswählen:** antippen oder Rahmen aufziehen; verschieben, kopieren, um 60° drehen, nach vorne,
-  nach hinten, löschen, umfärben.
+  nach hinten, umfärben. Rückgängig und Löschen (Papierkorb) stehen direkt in der Werkzeugleiste.
 - **Farben:** Kinderfarben für Füllung und Rand, eigene Farbe über ein Farbrad, kein Rand, drei Linienstärken.
 - **Zoom:** Das Blatt bleibt gleich groß; gezoomt werden Raster und Zeichnung darin. Herauszoomen zeigt
   mehr Rasterpunkte. Zwei Finger zoomen und verschieben, ebenso Mausrad/Trackpad und die Knöpfe
