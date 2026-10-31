@@ -99,5 +99,7 @@ GitHub Pages. Dafür muss einmalig unter *Settings → Pages → Source* „GitH
 - `src/geo/shapes.ts`: Formen, Treffer, Verschieben/Drehen, Verschmelzen von drei Rauten.
 - `src/geo/color.ts`: Paletten und die drei Würfel-Schattierungen.
 - `src/geo/space.ts`: aus der Zeichnung ein 3D-Modell (Tiefen der Würfel, Widersprüche, Wände).
-- `src/model/doc.ts`: Bild, Blattformate, Galerie im Browser, Dateiformat.
+- `src/model/doc.ts`: Bild, Blattformate, Dateiformat.
+- `src/model/store.ts`: Galerie in IndexedDB (alte Bilder aus localStorage werden einmal übernommen; ohne IndexedDB weiter localStorage).
+- `src/model/examples.ts`: Beispielbilder.
 - `src/ui/`: React-Oberfläche (Galerie, Editor, zoombare Zeichenfläche, Farbrad, Export).

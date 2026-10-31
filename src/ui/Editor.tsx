@@ -46,7 +46,8 @@ import {
   sameCell,
   translate,
 } from '../geo/shapes';
-import { type Doc, centredView, gridOf, saveDoc, sheetOf, zoomView } from '../model/doc';
+import { type Doc, centredView, gridOf, sheetOf, zoomView } from '../model/doc';
+import { saveDoc } from '../model/store';
 import { ColorWheel } from './ColorWheel';
 import { exportPng, printDoc, saveFile } from './exporting';
 import * as I from './icons';
@@ -179,13 +180,13 @@ export function Editor({ initial, onExit }: Props) {
 
   // Autosave shortly after every change.
   useEffect(() => {
-    const t = setTimeout(() => saveDoc(doc), 400);
+    const t = setTimeout(() => void saveDoc(doc), 400);
     return () => clearTimeout(t);
   }, [doc]);
 
-  const exit = () => {
+  const exit = async () => {
     finishPen();
-    saveDoc(docRef.current);
+    await saveDoc(docRef.current);
     onExit(docRef.current);
   };
 

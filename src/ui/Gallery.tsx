@@ -1,7 +1,8 @@
 // Start screen: all drawings in this browser, a new drawing, or a drawing from a file.
 
-import { useMemo, useState } from 'react';
-import { type Doc, FORMATS, type FormatId, type GridStyle, deleteDoc, fromFile, listDocs, newDoc, saveDoc } from '../model/doc';
+import { useEffect, useMemo, useState } from 'react';
+import { type Doc, FORMATS, type FormatId, type GridStyle, fromFile, newDoc } from '../model/doc';
+import { deleteDoc, listDocs, saveDoc } from '../model/store';
 import { EXAMPLES } from '../model/examples';
 import { openFile } from './exporting';
 import * as I from './icons';
@@ -13,7 +14,14 @@ function Thumb({ doc }: { doc: Doc }) {
 }
 
 export function Gallery({ onOpen }: { onOpen(d: Doc): void }) {
-  const [docs, setDocs] = useState(listDocs);
+  const [docs, setDocs] = useState<Doc[]>([]);
+  useEffect(() => {
+    let live = true;
+    listDocs().then((d) => live && setDocs(d));
+    return () => {
+      live = false;
+    };
+  }, []);
   const [creating, setCreating] = useState(false);
   const [msg, setMsg] = useState('');
   const examples = useMemo(() => EXAMPLES.map((e) => e.make()), []);
@@ -61,8 +69,7 @@ export function Gallery({ onOpen }: { onOpen(d: Doc): void }) {
                 title="Löschen"
                 onClick={() => {
                   if (confirm(`„${d.name}“ wirklich löschen?`)) {
-                    deleteDoc(d.id);
-                    setDocs(listDocs());
+                    deleteDoc(d.id).then(() => listDocs().then(setDocs));
                   }
                 }}
               >

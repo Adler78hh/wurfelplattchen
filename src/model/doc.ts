@@ -74,47 +74,13 @@ function viewOf(d: { format: FormatId; view?: unknown; gridSize?: unknown }): Gr
 
 // ------------------------------------------------------------ gallery storage
 
-const INDEX = 'wp-index';
-const DOC = (id: string) => 'wp-doc-' + id;
-
-function read<T>(k: string): T | null {
-  try {
-    const raw = localStorage.getItem(k);
-    return raw ? (JSON.parse(raw) as T) : null;
-  } catch {
-    return null;
-  }
+/** A stored drawing, made fit for this version (older ones had a grid size instead of a view). */
+export function normalizeDoc(d: Doc): Doc | null {
+  if (!d || !(d.format in FORMATS) || !Array.isArray(d.shapes)) return null;
+  return { ...d, view: viewOf(d) };
 }
 
-export function listDocs(): Doc[] {
-  const ids = read<string[]>(INDEX) ?? [];
-  return ids
-    .map((id) => read<Doc>(DOC(id)))
-    .filter((d): d is Doc => !!d && d.format in FORMATS)
-    .map((d) => ({ ...d, view: viewOf(d) }))
-    .sort((a, b) => b.updated - a.updated);
-}
-
-export function saveDoc(d: Doc): boolean {
-  try {
-    localStorage.setItem(DOC(d.id), JSON.stringify(d));
-    const ids = read<string[]>(INDEX) ?? [];
-    if (!ids.includes(d.id)) localStorage.setItem(INDEX, JSON.stringify([...ids, d.id]));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function deleteDoc(id: string): void {
-  try {
-    localStorage.removeItem(DOC(id));
-    const ids = read<string[]>(INDEX) ?? [];
-    localStorage.setItem(INDEX, JSON.stringify(ids.filter((x) => x !== id)));
-  } catch {
-    /* nothing to do */
-  }
-}
+// The gallery itself lives in src/model/store.ts (IndexedDB, with localStorage as fallback).
 
 // ------------------------------------------------------------ file format
 
