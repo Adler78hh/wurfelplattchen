@@ -301,3 +301,48 @@ export function mergeTriangles(shapes: Shape[], pair: TrianglePair): { shapes: S
   });
   return { shapes: out, id: rhomb.id };
 }
+
+// ------------------------------------------------------------ repeating patterns
+
+/** Step to the right by which copies of the shapes sit right next to each other (no gap). */
+export function rowStep(sel: Shape[]): LP {
+  const is = allPts(sel).map((p) => p[0]);
+  const n = Math.max(1, Math.ceil((Math.max(...is) - Math.min(...is)) / 2));
+  return [2 * n, -n];
+}
+
+/** n further copies of the shapes, each moved one more step. */
+export function repeatRow(sel: Shape[], step: LP, n: number): Shape[] {
+  const out: Shape[] = [];
+  for (let k = 1; k <= n; k++) for (const s of sel) out.push({ ...translate(s, [step[0] * k, step[1] * k]), id: newId() });
+  return out;
+}
+
+/** Copies turned around lattice point c so that n pieces (3 or 6) go once round. */
+export function rotateCopies(sel: Shape[], c: LP, n: 3 | 6): Shape[] {
+  const out: Shape[] = [];
+  const turns = 6 / n;
+  for (let k = 1; k < n; k++)
+    for (const s of sel) {
+      let t = s;
+      for (let r = 0; r < k * turns; r++) t = rotate(t, c);
+      out.push({ ...t, id: newId() });
+    }
+  return out;
+}
+
+/** The corner of the shapes nearest to a point (as fractional lattice coordinates). */
+export function nearestCorner(sel: Shape[], fi: number, fj: number): LP | null {
+  let best: LP | null = null;
+  let bestD = Infinity;
+  for (const p of allPts(sel)) {
+    const a = p[0] - fi;
+    const b = p[1] - fj;
+    const d = a * a + a * b + b * b;
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  return best;
+}

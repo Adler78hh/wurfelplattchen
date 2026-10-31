@@ -208,3 +208,31 @@ describe('two triangles → rhomb', () => {
     for (let k = 0; k < 4; k++) expect(edgeLen(rh.parts[0].pts[k], rh.parts[0].pts[(k + 1) % 4])).toBeCloseTo(10);
   });
 });
+
+describe('patterns', () => {
+  it('six rhombs turned round their sharp corner make the Vasarely star', async () => {
+    const { rotateCopies, findCandidates: fc } = await import('../src/geo/shapes');
+    // Rhomb with its sharp corner at the origin: edges along two neighbouring directions.
+    const r: Shape = { id: newId(), kind: 'rhomb', parts: [{ pts: [[0, 0], [0, -1], [1, -2], [1, -1]], fill: '#ffd166' }], stroke: null, width: 1 };
+    expect(rhombType(r.parts[0].pts)).not.toBe(-1);
+    const copies = rotateCopies([r], [0, 0], 6);
+    expect(copies).toHaveLength(5);
+    const all = [r, ...copies];
+    // All share the centre and no two coincide.
+    expect(all.every((s) => s.parts[0].pts.some((p) => p[0] === 0 && p[1] === 0))).toBe(true);
+    expect(new Set(all.map((s) => s.parts[0].pts.map((p) => p.join(',')).sort().join('|'))).size).toBe(6);
+    expect(fc(all)).toHaveLength(0);
+    expect(rotateCopies([r], [0, 0], 3)).toHaveLength(2);
+  });
+
+  it('repeats a row', async () => {
+    const { repeatRow } = await import('../src/geo/shapes');
+    const r = rhomb([0, 0], 0);
+    const row = repeatRow([r], [2, -1], 3);
+    expect(row).toHaveLength(3);
+    expect(row[2].parts[0].pts[0]).toEqual([6, -3]);
+    const { rowStep } = await import('../src/geo/shapes');
+    // Cube plates (two cells wide) touch side by side.
+    expect(rowStep([{ ...r, kind: 'cube', parts: cubeFills(cubeFaces([0, 0], 0), '#ffffff') }])).toEqual([2, -1]);
+  });
+});

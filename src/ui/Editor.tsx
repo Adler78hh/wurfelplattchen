@@ -13,6 +13,7 @@ import {
   key,
   nearestPoint,
   pointsOnSheet,
+  toIJ,
   rhombAt,
   roundIJ,
   same,
@@ -30,6 +31,10 @@ import {
   split,
   findTrianglePairs,
   mergeTriangles,
+  nearestCorner,
+  repeatRow,
+  rowStep,
+  rotateCopies,
   type TrianglePair,
   isTurned,
   showsAsCorner,
@@ -108,6 +113,8 @@ export function Editor({ initial, onExit }: Props) {
   const [selection, setSelection] = useState<string[]>([]);
   const [faceSel, setFaceSel] = useState<number | null>(null);
   const [focus, setFocus] = useState<{ id: string; p: Pt } | null>(null);
+  /** Where the selection was last tapped: the centre for "Stern". */
+  const lastTap = useRef<Pt | null>(null);
   const [ghost, setGhost] = useState<Shape | null>(null);
   const [poly, setPoly] = useState<LP[]>([]);
   const [cursor, setCursor] = useState<LP | null>(null);
@@ -296,6 +303,7 @@ export function Editor({ initial, onExit }: Props) {
           setFaceSel(null);
         }
         if (hit.shape.kind === 'rhomb' || hit.shape.kind === 'triangle') setFocus({ id: hit.shape.id, p });
+        lastTap.current = p;
         drag.current = { mode: 'move', start: p, base: shapes, ids, d: [0, 0], moved: false };
       } else {
         drag.current = { mode: 'rect', start: p };
@@ -441,6 +449,21 @@ export function Editor({ initial, onExit }: Props) {
     const clones = selShapes.map((s) => ({ ...translate(s, off), id: newId() }));
     commit([...shapes, ...clones]);
     setSelection(clones.map((s) => s.id));
+  };
+  // Repeating patterns: a row to the right, or a star turned round a corner.
+  const rowSel = () => {
+    if (!selShapes.length) return;
+    const clones = repeatRow(selShapes, rowStep(selShapes), 3);
+    commit([...shapes, ...clones]);
+    setSelection([...selection, ...clones.map((s) => s.id)]);
+  };
+  const starSel = (n: 3 | 6) => {
+    if (!selShapes.length) return;
+    const tap = lastTap.current;
+    const c = (tap && nearestCorner(selShapes, ...toIJ(g, tap.x, tap.y))) || pivotOf(g, selShapes, (x, y) => nearestPoint(g, x, y));
+    const clones = rotateCopies(selShapes, c, n);
+    commit([...shapes, ...clones]);
+    setSelection([...selection, ...clones.map((s) => s.id)]);
   };
   const rotateSel = () => {
     if (!selShapes.length) return;
@@ -865,6 +888,15 @@ export function Editor({ initial, onExit }: Props) {
               </button>
               <button className="pill" onClick={rotateSel}>
                 <I.RotateIcon /> Drehen
+              </button>
+              <button className="pill" onClick={rowSel} title="Noch dreimal nach rechts">
+                <I.RowIcon /> Reihe
+              </button>
+              <button className="pill" onClick={() => starSel(3)} title="Drei Stück im Kreis um die angetippte Ecke">
+                <I.StarIcon n={3} /> Stern ×3
+              </button>
+              <button className="pill" onClick={() => starSel(6)} title="Sechs Stück im Kreis um die angetippte Ecke">
+                <I.StarIcon n={6} /> Stern ×6
               </button>
               <button className="pill" onClick={() => commit(reorder(shapes, selection, 1))}>
                 <I.FrontIcon /> Nach vorne

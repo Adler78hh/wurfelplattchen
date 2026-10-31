@@ -167,6 +167,21 @@ export const ThreeDIcon = () => (
   </svg>
 );
 
+export const RowIcon = () => (
+  <Icon>
+    <path d="M2 9l3-2 3 2v6l-3 2-3-2zM9 9l3-2 3 2v6l-3 2-3-2zM16 9l3-2 3 2v6l-3 2-3-2z" strokeWidth="1.6" />
+  </Icon>
+);
+
+/** Rhombs turned round a centre: 3 or 6 of them. */
+export const StarIcon = ({ n }: { n: 3 | 6 }) => (
+  <Icon>
+    {Array.from({ length: n }, (_, k) => (
+      <polygon key={k} points="12,12 9.5,7.7 12,3 14.5,7.7" transform={`rotate(${(k * 360) / n} 12 12)`} strokeWidth="1.5" fill={k === 0 ? '#ffd166' : 'none'} />
+    ))}
+  </Icon>
+);
+
 export const RotateIcon = () => (
   <Icon>
     <path d="M20 12a8 8 0 1 1-2.4-5.7" />

@@ -25,6 +25,9 @@ Rauten und Dreiecken.
 - **Radiergummi**, **Farbe aufnehmen** (Pipette).
 - **Auswählen:** antippen oder Rahmen aufziehen; verschieben, kopieren, um 60° drehen, nach vorne,
   nach hinten, umfärben. Rückgängig und Löschen (Papierkorb) stehen direkt in der Werkzeugleiste.
+- **Muster:** *Reihe* setzt die Auswahl dreimal lückenlos nach rechts fort. *Stern ×3* und *Stern ×6*
+  drehen Kopien um die Ecke, an der die Form angetippt wurde – eine Raute an ihrer spitzen Ecke
+  angetippt ergibt mit *Stern ×6* den Vasarely-Stern.
 - **Farben:** Kinderfarben für Füllung und Rand, eigene Farbe über ein Farbrad, kein Rand, drei Linienstärken.
 - **Zoom:** Das Blatt bleibt gleich groß; gezoomt werden Raster und Zeichnung darin. Herauszoomen zeigt
   mehr Rasterpunkte. Zwei Finger zoomen und verschieben, ebenso Mausrad/Trackpad und die Knöpfe
