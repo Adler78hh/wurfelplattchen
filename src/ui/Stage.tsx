@@ -9,6 +9,8 @@ interface Props {
   h: number;
   /** px per mm, for hit tolerances. */
   onScale?: (scale: number) => void;
+  /** Where the sheet sits in the box: screen px = t + mm · scale. */
+  onFit?: (fit: Fit) => void;
   onDown(p: Pt): void;
   onMove(p: Pt): void;
   onUp(p: Pt): void;
@@ -21,13 +23,13 @@ interface Props {
   children: ReactNode;
 }
 
-interface Fit {
+export interface Fit {
   scale: number;
   tx: number;
   ty: number;
 }
 
-export function Stage({ w, h, onScale, onDown, onMove, onUp, onCancel, onHover, onZoom, onPan, children }: Props) {
+export function Stage({ w, h, onScale, onFit, onDown, onMove, onUp, onCancel, onHover, onZoom, onPan, children }: Props) {
   const box = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState<Fit>({ scale: 1, tx: 0, ty: 0 });
   const fitRef = useRef(fit);
@@ -59,6 +61,7 @@ export function Stage({ w, h, onScale, onDown, onMove, onUp, onCancel, onHover, 
   }, [w, h]);
 
   useEffect(() => onScale?.(fit.scale), [fit.scale, onScale]);
+  useEffect(() => onFit?.(fit), [fit, onFit]);
 
   const toSheet = (cx: number, cy: number): Pt => {
     const r = box.current!.getBoundingClientRect();

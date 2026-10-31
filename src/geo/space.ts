@@ -272,30 +272,50 @@ function fits(a: Piece, b: Piece): number {
  * Pieces for all shapes. A hand-drawn shape without a chosen plane takes the best-fitting plane;
  * when several fit equally well, the one in which it meets most cube and rhomb edges.
  */
+/**
+ * The planes that fit a hand-drawn shape best, best first: most edges that are cube edges, then
+ * most corners meeting cube and rhomb edges. More than one: a tipping figure – both readings work.
+ */
+function bestPlanes(s: Shape, order: number, fixed: Piece[]): { pieces: Piece[]; options: RhombType[] } {
+  const pts = s.parts[0].pts;
+  const score = planeScores(pts, s.kind !== 'line');
+  const top = Math.max(...score);
+  const tied = ([0, 1, 2] as RhombType[]).filter((k) => score[k] > top - 1e-9);
+  const cands = tied.map((plane) => {
+    const piece = drawnPiece(s, order, plane)!;
+    return { plane, piece, fit: fixed.reduce((sum, f) => sum + fits(piece, f), 0) };
+  });
+  const bestFit = Math.max(...cands.map((c) => c.fit));
+  const best = cands.filter((c) => c.fit === bestFit);
+  return { pieces: best.map((c) => c.piece), options: best.map((c) => c.plane) };
+}
+
+/** Pieces for all shapes; hand-drawn shapes without a chosen plane get the best-fitting plane. */
 function piecesOf(shapes: Shape[]): Piece[] {
   const pieces = shapes.map((s, i) => pieceOf(s, i));
   const fixed = pieces.filter((p): p is Piece => !!p && !p.drawn);
   return pieces
-    .map((p, i) => {
-      const s = shapes[i];
-      if (!p || !p.drawn || s.plane !== undefined) return p;
-      const score = planeScores(p.pts, s.kind !== 'line');
-      const top = Math.max(...score);
-      const tied = ([0, 1, 2] as RhombType[]).filter((k) => score[k] > top - 1e-9);
-      if (tied.length < 2) return p;
-      let best = p;
-      let bestFit = -1;
-      for (const plane of tied) {
-        const cand = drawnPiece(s, i, plane)!;
-        const fit = fixed.reduce((sum, f) => sum + fits(cand, f), 0);
-        if (fit > bestFit) {
-          best = cand;
-          bestFit = fit;
-        }
-      }
-      return best;
-    })
+    .map((p, i) => (!p || !p.drawn || shapes[i].plane !== undefined ? p : bestPlanes(shapes[i], i, fixed).pieces[0]))
     .filter((p): p is Piece => !!p);
+}
+
+export interface PlaneChoice {
+  /** Plane used now (chosen by the child, or the app's guess). */
+  plane: RhombType;
+  /** The child has chosen it. */
+  chosen: boolean;
+  /** Planes that fit equally well; two or more: a tipping figure. */
+  options: RhombType[];
+}
+
+/** How a hand-drawn shape lies in 3D and which planes would fit equally well; null for other shapes. */
+export function planeChoice(shapes: Shape[], id: string): PlaneChoice | null {
+  const i = shapes.findIndex((s) => s.id === id);
+  const s = shapes[i];
+  if (!s || s.kind === 'cube' || s.kind === 'rhomb' || s.parts[0].pts.length < 2) return null;
+  const fixed = shapes.map((x, k) => (x.kind === 'cube' || x.kind === 'rhomb' ? pieceOf(x, k) : null)).filter((p): p is Piece => !!p);
+  const { options } = bestPlanes(s, i, fixed);
+  return { plane: s.plane ?? options[0], chosen: s.plane !== undefined, options };
 }
 
 function placePieces(shapes: Shape[]): Placed {

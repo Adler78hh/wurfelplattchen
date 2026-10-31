@@ -154,3 +154,35 @@ describe('hand-drawn shapes', () => {
     expect(m.walls[0].plane).not.toBe(0);
   });
 });
+
+describe('tipping figures', () => {
+  const poly = (pts: LP[]): Shape => ({ id: newId(), kind: 'polygon', parts: [{ pts, fill: '#a58bd8' }], stroke: null, width: 1 });
+  // The four examples from the drawing: a cube and a shape at its lid.
+  const cases: [LP, LP[], number][] = [
+    [[4, 1], [[2, 1], [4, -1], [4, 0], [3, 1]], 2], // purple flag: table or wall
+    [[11, -2], [[9, -2], [10, -3], [11, -3], [10, -2], [9, -1]], 2], // purple step: table or wall
+    [[4, 5], [[1, 5], [2, 4], [4, 4], [3, 5]], 1], // pink table
+    [[11, 2], [[10, 1], [11, 0], [11, 1], [10, 2]], 1], // pink wall
+  ];
+
+  it('knows which shapes have two readings', async () => {
+    const { planeChoice } = await import('../src/geo/space');
+    for (const [c, pts, n] of cases) {
+      const p = poly(pts);
+      const choice = planeChoice([cube(c), p], p.id)!;
+      expect(choice.options).toHaveLength(n);
+      expect(choice.chosen).toBe(false);
+      expect(choice.options).toContain(choice.plane);
+    }
+    expect(planeChoice([cube([4, 4])], 'nope')).toBeNull();
+  });
+
+  it('a chosen plane is used and remembered', async () => {
+    const { planeChoice } = await import('../src/geo/space');
+    const [c, pts] = cases[0];
+    const p = { ...poly(pts), plane: 1 as const };
+    const choice = planeChoice([cube(c), p], p.id)!;
+    expect(choice).toMatchObject({ plane: 1, chosen: true });
+    expect(buildModel([cube(c), p]).walls[0].plane).toBe(1);
+  });
+});

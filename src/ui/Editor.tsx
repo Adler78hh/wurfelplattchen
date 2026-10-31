@@ -41,12 +41,19 @@ import { ColorWheel } from './ColorWheel';
 import { exportPng, printDoc, saveFile } from './exporting';
 import * as I from './icons';
 import { GRID_DOT, GRID_LINE, gridSegments, pathD, strokeWidth } from './render';
-import { Stage } from './Stage';
+import { type Fit, Stage } from './Stage';
+import { type PlaneChoice, planeChoice } from '../geo/space';
 
 const View3D = lazy(() => import('./View3D'));
 
 type Tool = 'select' | 'cube' | 'rhomb' | 'triangle' | 'hexagon' | 'pen' | 'paint' | 'erase' | 'pick';
 const SHAPE_TOOLS: Tool[] = ['cube', 'rhomb', 'triangle', 'hexagon'];
+const PLANE_NAMES: Record<RhombType, string> = { 0: 'Tisch', 1: 'Wand', 2: 'Wand' };
+const PLANE_TITLES: Record<RhombType, string> = {
+  0: 'Liegt wie ein Tisch (wie der Würfeldeckel)',
+  1: 'Steht als Wand (wie die rechte Würfelseite)',
+  2: 'Steht als Wand (wie die linke Würfelseite)',
+};
 
 type Drag =
   | { mode: 'move'; start: Pt; base: Shape[]; ids: string[]; d: LP; moved: boolean }
@@ -85,6 +92,10 @@ export function Editor({ initial, onExit }: Props) {
   const [wheel, setWheel] = useState<null | 'fill' | 'stroke'>(null);
   const [menu, setMenu] = useState<null | 'grid' | 'export'>(null);
   const [show3d, setShow3d] = useState(false);
+  const [fit, setFit] = useState<Fit | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  /** Just closed a shape that can be read two ways: ask whether it lies or stands. */
+  const [ask, setAsk] = useState<{ id: string; options: RhombType[] } | null>(null);
 
   const [selection, setSelection] = useState<string[]>([]);
   const [faceSel, setFaceSel] = useState<number | null>(null);
@@ -137,6 +148,7 @@ export function Editor({ initial, onExit }: Props) {
     hist.current = { past: past.slice(0, -1), future: [docRef.current.shapes, ...future] };
     setHistVersion((v) => v + 1);
     setShapes(past[past.length - 1]);
+    setAsk(null);
     setSelection([]);
     setFaceSel(null);
   };
@@ -183,6 +195,7 @@ export function Editor({ initial, onExit }: Props) {
   };
 
   const setTool = (t: Tool) => {
+    setAsk(null);
     if (t !== tool) {
       if (poly.length) finishPen();
       if (t === 'pick') prevTool.current = tool;
@@ -240,6 +253,7 @@ export function Editor({ initial, onExit }: Props) {
 
   const onDown = (p: Pt) => {
     setMenu(null);
+    setAsk(null);
     if (SHAPE_TOOLS.includes(tool)) {
       drag.current = { mode: 'place' };
       setGhost(makeShape(tool, p));
@@ -322,7 +336,11 @@ export function Editor({ initial, onExit }: Props) {
         // Tapping the last point again ends an open line.
         if (!d.started && cur.length >= 2) finishPen();
       } else if (same(q, cur[0]) && cur.length >= 3) {
-        commit([...docRef.current.shapes, { id: newId(), kind: 'polygon', parts: [{ pts: cur, fill }], stroke, width }]);
+        const made: Shape = { id: newId(), kind: 'polygon', parts: [{ pts: cur, fill }], stroke, width };
+        const next = [...docRef.current.shapes, made];
+        commit(next);
+        const choice = planeChoice(next, made.id);
+        if (choice && choice.options.length > 1) setAsk({ id: made.id, options: choice.options });
         setPolyNow([]);
       } else {
         setPolyNow([...cur, q]);
@@ -372,6 +390,15 @@ export function Editor({ initial, onExit }: Props) {
 
   const selShapes = shapes.filter((s) => selection.includes(s.id));
   const singleCube = selShapes.length === 1 && selShapes[0].kind === 'cube' ? selShapes[0] : null;
+
+  // Lying or standing: hand-drawn shapes only.
+  const drawnSel = selShapes.length > 0 && selShapes.every((s) => s.kind !== 'cube' && s.kind !== 'rhomb');
+  const choices: PlaneChoice[] = drawnSel ? selShapes.map((s) => planeChoice(shapes, s.id)).filter((c): c is PlaneChoice => !!c) : [];
+  const shownPlane = choices.length && choices.every((c) => c.plane === choices[0].plane) ? choices[0].plane : null;
+  const setPlane = (plane: RhombType, ids: string[]) => {
+    commit(docRef.current.shapes.map((s) => (ids.includes(s.id) ? { ...s, plane } : s)));
+    setAsk(null);
+  };
 
   const applyFill = (c: string) => {
     setFill(c);
@@ -541,6 +568,34 @@ export function Editor({ initial, onExit }: Props) {
     <button key={label} className={'swatch' + (on ? ' on' : '') + (ring ? ' ring' : '')} style={ring ? { borderColor: c } : { background: c }} onClick={onClick} aria-label={label} title={label} />
   );
 
+  /** Speech bubble next to a freshly drawn tipping figure: "Liegt sie oder steht sie?" */
+  const askBubble = () => {
+    const sh = shapes.find((x) => x.id === ask!.id);
+    if (!sh || !fit) return null;
+    const pts = sh.parts[0].pts.map((q) => toXY(g, q));
+    const cx = pts.reduce((a, q) => a + q.x, 0) / pts.length;
+    const top = Math.min(...pts.map((q) => q.y));
+    const W = wrapRef.current?.clientWidth ?? 600;
+    const x = Math.max(130, Math.min(W - 130, fit.tx + cx * fit.scale));
+    const y = Math.max(8, fit.ty + top * fit.scale - 10);
+    return (
+      <div className={'ask' + (y < 140 ? ' below' : '')} style={{ left: x, top: y < 140 ? fit.ty + Math.max(...pts.map((q) => q.y)) * fit.scale + 10 : y }}>
+        <div className="ask-q">Liegt sie oder steht sie?</div>
+        <div className="ask-row">
+          {ask!.options.map((pl) => (
+            <button key={pl} className="plane-btn" onClick={() => setPlane(pl, [ask!.id])} title={PLANE_TITLES[pl]} aria-label={PLANE_TITLES[pl]}>
+              <I.RhombIcon type={pl} />
+              <span>{PLANE_NAMES[pl]}</span>
+            </button>
+          ))}
+          <button className="ask-x" onClick={() => setAsk(null)} aria-label="Später">
+            <I.CloseIcon />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const curFill = singleCube && faceSel !== null ? singleCube.parts[faceSel].fill : fill;
 
   return (
@@ -634,8 +689,8 @@ export function Editor({ initial, onExit }: Props) {
       </header>
 
       <main className="work">
-        <div className="stage-wrap">
-          <Stage w={w} h={h} onScale={onScale} onDown={onDown} onMove={onMove} onUp={onUp} onCancel={onCancel} onHover={onHover} onZoom={zoom} onPan={pan}>
+        <div className="stage-wrap" ref={wrapRef}>
+          <Stage w={w} h={h} onScale={onScale} onFit={setFit} onDown={onDown} onMove={onMove} onUp={onUp} onCancel={onCancel} onHover={onHover} onZoom={zoom} onPan={pan}>
             <defs>
               <clipPath id="sheet-clip">
                 <rect width={w} height={h} rx={1.5} />
@@ -674,6 +729,7 @@ export function Editor({ initial, onExit }: Props) {
               />
             )}
           </Stage>
+          {ask && fit && askBubble()}
           <div className="zoom">
             <button className="round small" onClick={() => zoom(1.3, { x: w / 2, y: h / 2 })} aria-label="Hineinzoomen" title="Hineinzoomen">
               <I.PlusIcon />
@@ -744,6 +800,25 @@ export function Editor({ initial, onExit }: Props) {
               <button className="pill" onClick={() => commit(reorder(shapes, selection, -1))}>
                 <I.BackLayerIcon /> Nach hinten
               </button>
+            </div>
+          )}
+
+          {drawnSel && choices.length > 0 && (
+            <div className="row planes">
+              <span className="label">Lage in 3D</span>
+              {([0, 2, 1] as RhombType[]).map((pl) => (
+                <button key={pl} className={'plane-btn' + (shownPlane === pl ? ' on' : '')} onClick={() => setPlane(pl, selection)} title={PLANE_TITLES[pl]} aria-label={PLANE_TITLES[pl]}>
+                  <I.RhombIcon type={pl} />
+                  <span>{PLANE_NAMES[pl]}</span>
+                </button>
+              ))}
+              <span className="hint">
+                {choices.some((c) => c.chosen)
+                  ? 'Du hast die Lage gewählt.'
+                  : choices.some((c) => c.options.length > 1)
+                    ? 'Kippfigur! Sie kann liegen oder stehen – du entscheidest.'
+                    : 'Die App hat die Lage gewählt.'}
+              </span>
             </div>
           )}
 

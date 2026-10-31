@@ -47,6 +47,9 @@ Der Knopf **3D** zeigt die Zeichnung als Körper. Ein Finger dreht, zwei Finger 
   Ebene, in der die meisten Kanten echte Würfelkanten sind; passen mehrere gleich gut, die, in der die
   Fläche an Würfel- oder Rautenkanten ansetzt. Gemeinsame Kanten (sonst eine gemeinsame Ecke) stoßen
   im Raum zusammen.
+- **Kippfiguren** (Flächen, die liegen oder stehen könnten): Nach dem Zeichnen fragt eine Sprechblase
+  „Liegt sie oder steht sie?“. Wer weiterzeichnet, überlässt der App die Wahl.
+- Ist eine gezeichnete Fläche ausgewählt, zeigt die Zeile **Lage in 3D** die Knöpfe Tisch, Wand, Wand.
 - **Antippen** einer gezeichneten Fläche in 3D klappt sie in die nächste Ebene. Die Wahl wird im Bild
   gespeichert und lässt sich rückgängig machen.
 - **Wie gezeichnet** dreht zurück in die Blickrichtung der Zeichnung.
