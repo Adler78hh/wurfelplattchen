@@ -23,6 +23,12 @@ interface Props {
   onFlip(id: string, plane: 0 | 1 | 2): void;
   /** A turned cube plate was tapped: switch between cube and inner corner. */
   onReading(id: string, reading: 'cube' | 'corner'): void;
+  /** Building: put a new cube into the space cell with this lowest corner. */
+  onAddCube(min: V3): void;
+  /** Building: take this cube plate away. */
+  onRemoveCube(id: string): void;
+  /** Colour of new cubes (shown on the button). */
+  buildColor: string;
 }
 
 interface Ctx {
@@ -36,7 +42,7 @@ interface Ctx {
   turnTo(dir: THREE.Vector3, dur?: number, zoom?: number, target?: THREE.Vector3): void;
 }
 
-export default function View3D({ name, shapes, onClose, onFlip, onReading }: Props) {
+export default function View3D({ name, shapes, onClose, onFlip, onReading, onAddCube, onRemoveCube, buildColor }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const model = useMemo(() => buildModel(shapes), [shapes]);
   const [mark, setMark] = useState(false);
@@ -48,6 +54,14 @@ export default function View3D({ name, shapes, onClose, onFlip, onReading }: Pro
   flipRef.current = onFlip;
   const readingRef = useRef(onReading);
   readingRef.current = onReading;
+  const [build, setBuild] = useState(false);
+  const buildRef = useRef(build);
+  buildRef.current = build;
+  const addRef = useRef(onAddCube);
+  addRef.current = onAddCube;
+  const removeRef = useRef(onRemoveCube);
+  removeRef.current = onRemoveCube;
+  const floorRef = useRef(0);
   const flipPlanes = useRef(new Map<string, 0 | 1 | 2>());
   const impossibleCount = model.cubes.filter((c) => c.impossible).length + model.walls.filter((w) => w.impossible).length;
   const canFlip = model.walls.some((w) => w.flippable || w.cornerOf) || model.cubes.some((c) => c.turned);
@@ -137,20 +151,58 @@ export default function View3D({ name, shapes, onClose, onFlip, onReading }: Pro
 
     // A short tap (not a turn) on a hand-drawn shape flips it into its next plane.
     let down: { x: number; y: number; t: number } | null = null;
+    const pick = (e: { clientX: number; clientY: number }) => {
+      const r = renderer.domElement.getBoundingClientRect();
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+      return ray;
+    };
+    // Long press while building: take the cube away.
+    let press = 0;
+    let pressed = false;
     const onDown = (e: PointerEvent) => {
       down = e.isPrimary ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
+      pressed = false;
+      clearTimeout(press);
+      if (!buildRef.current || !down || !c.content) return;
+      const at = { clientX: e.clientX, clientY: e.clientY };
+      press = window.setTimeout(() => {
+        if (!down || !c.content) return;
+        const hit = pick(at).intersectObjects(c.content.children, false).find((h) => h.object.userData.solid);
+        const id = hit?.object.userData.cubeId as string | undefined;
+        if (!id) return;
+        pressed = true;
+        navigator.vibrate?.(30);
+        removeRef.current(id);
+      }, 550);
+    };
+    const onMove = (e: PointerEvent) => {
+      if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) clearTimeout(press);
     };
     const onUp = (e: PointerEvent) => {
-      if (!down || !c.content) return;
+      clearTimeout(press);
+      if (!down || !c.content || pressed) return;
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
       const quick = performance.now() - down.t < 450;
       down = null;
       if (moved > 8 || !quick) return;
-      const r = renderer.domElement.getBoundingClientRect();
-      const ray = new THREE.Raycaster();
-      ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+      const ray = pick(e);
       const hit = ray.intersectObjects(c.content.children, false).find((h) => h.object.userData.solid);
       const data = hit?.object.userData ?? {};
+      if (buildRef.current) {
+        // Building: a new cube next to the tapped cube face, or on the tapped ground.
+        if (data.cubeMin && hit?.face) {
+          const n = hit.face.normal; // three.js (x, y, z) = space (X, Z, Y)
+          const m = data.cubeMin as V3;
+          const cell: V3 = [m[0] + Math.round(n.x), m[1] + Math.round(n.z), m[2] + Math.round(n.y)];
+          if (cell[2] >= floorRef.current) addRef.current(cell);
+          return;
+        }
+        if (hit) return;
+        const p = new THREE.Vector3();
+        if (ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -floorRef.current), p)) addRef.current([Math.floor(p.x), Math.floor(p.z), floorRef.current]);
+        return;
+      }
       if (data.turnedCube) return readingRef.current(data.turnedCube, 'corner');
       if (data.cornerOf) return readingRef.current(data.cornerOf, 'cube');
       const id = data.flipId as string | undefined;
@@ -158,6 +210,7 @@ export default function View3D({ name, shapes, onClose, onFlip, onReading }: Pro
       const plane = flipPlanes.current.get(id);
       if (plane !== undefined) flipRef.current(id, ((plane + 1) % 3) as 0 | 1 | 2);
     };
+    renderer.domElement.addEventListener('pointermove', onMove);
     renderer.domElement.addEventListener('pointerdown', onDown);
     renderer.domElement.addEventListener('pointerup', onUp);
 
@@ -169,6 +222,8 @@ export default function View3D({ name, shapes, onClose, onFlip, onReading }: Pro
       cancelAnimationFrame(raf);
       ro?.disconnect();
       renderer.domElement.removeEventListener('pointerdown', onDown);
+      renderer.domElement.removeEventListener('pointermove', onMove);
+      clearTimeout(press);
       renderer.domElement.removeEventListener('pointerup', onUp);
       controls.dispose();
       disposeTree(scene);
@@ -196,7 +251,8 @@ export default function View3D({ name, shapes, onClose, onFlip, onReading }: Pro
     const radius = Math.max(1.5, toThree([b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]]).length() / 2);
     const size = Math.ceil(radius * 1.6) * 2 + 4;
     const ground = new THREE.GridHelper(size, size, 0xbcdcde, 0xd8ecec);
-    ground.position.set(Math.round(centre.x), b.min[2] - 0.001, Math.round(centre.z));
+    floorRef.current = Math.min(0, Math.round(b.min[2]));
+    ground.position.set(Math.round(centre.x), floorRef.current - 0.001, Math.round(centre.z));
     group.add(ground);
 
     c.scene.add(group);
@@ -243,6 +299,9 @@ export default function View3D({ name, shapes, onClose, onFlip, onReading }: Pro
         <span className="grow" />
         {!empty && !failed && (
           <>
+            <button className={'pill build' + (build ? ' on' : '')} onClick={() => setBuild(!build)} aria-label="Bauen" title="Bauen: Würfel anbauen und wegnehmen">
+              <span className="build-dot" style={{ background: buildColor }} /> <span className="lbl">Bauen</span>
+            </button>
             <button className="pill" onClick={() => ctx.current?.turnTo(ISO_DIR)} aria-label="Wie gezeichnet" title="So drehen, wie es gezeichnet ist">
               <I.CubeIcon /> <span className="lbl">Wie gezeichnet</span>
             </button>
@@ -267,8 +326,10 @@ export default function View3D({ name, shapes, onClose, onFlip, onReading }: Pro
         {empty && <p className="view3d-msg">Hier ist noch nichts zu sehen. Setze Würfelplättchen, dann werden daraus Würfel.</p>}
         {failed && <p className="view3d-msg">Dieses Gerät kann leider keine 3D-Grafik anzeigen.</p>}
         {!empty && !failed && (
-          <p className="view3d-hint">
-            Ein Finger dreht · zwei Finger zoomen{canFlip ? ' · Fläche oder gedrehtes Plättchen antippen: umklappen' : ''}
+          <p className={'view3d-hint' + (build ? ' building' : '')}>
+            {build
+              ? 'Bauen: Würfelseite oder Boden antippen = neuer Würfel · lange drücken = wegnehmen'
+              : 'Ein Finger dreht · zwei Finger zoomen' + (canFlip ? ' · Fläche oder gedrehtes Plättchen antippen: umklappen' : '')}
           </p>
         )}
       </div>
@@ -302,6 +363,8 @@ function buildScene(model: Model) {
     const mats = [c.colors.x, c.colors.x, c.colors.z, c.colors.z, c.colors.y, c.colors.y].map(basic);
     const mesh = new THREE.Mesh(box, mats);
     mesh.userData.solid = true;
+    mesh.userData.cubeId = c.id;
+    mesh.userData.cubeMin = c.min;
     if (c.turned) mesh.userData.turnedCube = c.id;
     const p = toThree([c.min[0] + 0.5, c.min[1] + 0.5, c.min[2] + 0.5]);
     mesh.position.copy(p);

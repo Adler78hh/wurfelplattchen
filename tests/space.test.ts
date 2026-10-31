@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { type LP, cubeFaces, rhombPts } from '../src/geo/lattice';
 import { type Shape, cubeFills, newId } from '../src/geo/shapes';
-import { buildModel, offsetFor, onLine, project } from '../src/geo/space';
+import { type V3, buildModel, offsetFor, onLine, project } from '../src/geo/space';
 
 const cube = (c: LP, v: 0 | 1 = 0, color = '#6aa9e0'): Shape => ({ id: newId(), kind: 'cube', parts: cubeFills(cubeFaces(c, v), color), stroke: '#4a3a2e', width: 1 });
 
@@ -268,5 +268,20 @@ describe('stacking new cubes', () => {
     s = await place(s, [1, 2]); // behind (−Y) and up
     const cubes = buildModel(s).cubes;
     expect(cubes.some((q) => q.impossible)).toBe(false);
+  });
+});
+
+describe('building in 3D', () => {
+  it('a cube added in space appears in the drawing exactly there, whatever side', async () => {
+    const { insertCubeAt } = await import('../src/geo/space');
+    const base = buildModel([cube([3, 2])]).cubes[0].min;
+    for (const f of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [-1, 0, 0], [0, -1, 0]] as V3[]) {
+      const min: V3 = [base[0] + f[0], base[1] + f[1], base[2] + f[2]];
+      const c = project(min) as LP;
+      const s = insertCubeAt([cube([3, 2])], cube(c), min);
+      const cubes = buildModel(s).cubes;
+      expect(cubes.map((q) => q.min)).toContainEqual(min);
+      expect(cubes.map((q) => q.min)).toContainEqual(base);
+    }
   });
 });

@@ -8,7 +8,8 @@ Rauten und Dreiecken.
 
 - **Galerie:** alle Bilder im Browser, neues Bild (A4 quer, A4 hoch, Quadrat; Punkte oder Dreiecke),
   Bild aus Datei öffnen.
-- **Würfelplättchen:** das zentrale Bauteil. Drei Rauten: Der Deckel bekommt die gewählte Farbe, links einen helleren und rechts einen dunkleren Ton.
+- **Würfelplättchen:** das zentrale Bauteil. Ein neues Plättchen wird automatisch richtig gestapelt:
+  Es liegt an Würfeln an, steht auf Boden oder Würfel und verschwindet hinter Würfeln, die davor stehen. Drei Rauten: Der Deckel bekommt die gewählte Farbe, links einen helleren und rechts einen dunkleren Ton.
   Ein zweiter Druck auf den Würfel-Knopf dreht das Plättchen um 60° (liegende Raute oben oder unten). Ein ausgewähltes Plättchen zeigt unter der
   Zeichenfläche seine drei Seiten; jede lässt sich einzeln umfärben. *Teilen* macht aus ausgewählten Plättchen wieder je drei lose Rauten.
 - **Raute, Dreieck, Sechseck:** genau eine Rasterzelle groß. Jeder weitere Druck auf den Rauten-Knopf
@@ -64,9 +65,9 @@ Der Knopf **3D** zeigt die Zeichnung als Körper. Ein Finger dreht, zwei Finger 
 Die 3D-Grafik nutzt three.js 0.162 (die letzte Version mit WebGL 1, damit sie auch auf älteren iPads läuft)
 und wird erst beim ersten Öffnen geladen.
 
-## Geplant
-
-- Etappe 3: Würfel in 3D anbauen und entfernen, die Zeichnung passt sich an.
+- **Bauen** (Knopf in 3D): Würfelseite antippen setzt dort einen neuen Würfel in der aktuellen Farbe,
+  Boden antippen stellt einen Würfel auf den Boden, lange drücken nimmt einen Würfel weg. Die Zeichnung
+  passt sich an, neue Plättchen landen an der richtigen Stelle im Stapel.
 
 ## Entwicklung
 

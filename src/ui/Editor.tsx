@@ -44,7 +44,7 @@ import { exportPng, printDoc, saveFile } from './exporting';
 import * as I from './icons';
 import { GRID_DOT, GRID_LINE, gridSegments, pathD, strokeWidth } from './render';
 import { type Fit, Stage } from './Stage';
-import { type PlaneChoice, planeChoice, stackCube } from '../geo/space';
+import { type PlaneChoice, insertCubeAt, planeChoice, project, stackCube } from '../geo/space';
 
 const View3D = lazy(() => import('./View3D'));
 
@@ -918,6 +918,13 @@ export function Editor({ initial, onExit }: Props) {
               onClose={() => setShow3d(false)}
               onFlip={(id, plane) => commit(docRef.current.shapes.map((s) => (s.id === id ? { ...s, plane } : s)))}
               onReading={(id, reading) => commit(docRef.current.shapes.map((s) => (s.id === id ? { ...s, reading } : s)))}
+              buildColor={fill}
+              onAddCube={(min) => {
+                const c = project(min) as LP;
+                const plate: Shape = { id: newId(), kind: 'cube', parts: cubeFills(cubeFaces(c, 0), fill), stroke, width };
+                commit(insertCubeAt(docRef.current.shapes, plate, min));
+              }}
+              onRemoveCube={(id) => commit(docRef.current.shapes.filter((s) => s.id !== id))}
             />
           </Suspense>
         </div>
