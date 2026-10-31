@@ -61,8 +61,13 @@ interface Props {
 export function Editor({ initial, onExit }: Props) {
   const [doc, setDoc] = useState(initial);
   const docRef = useRef(doc);
-  const [past, setPast] = useState<Shape[][]>([]);
-  const [future, setFuture] = useState<Shape[][]>([]);
+  // History lives in a ref (read synchronously by every handler); the counter re-renders the buttons.
+  const hist = useRef<{ past: Shape[][]; future: Shape[][] }>({ past: [], future: [] });
+  const [, setHistVersion] = useState(0);
+  const pushPast = (prev: Shape[]) => {
+    hist.current = { past: [...hist.current.past.slice(-149), prev], future: [] };
+    setHistVersion((v) => v + 1);
+  };
   const gestureBase = useRef<Shape[] | null>(null);
 
   const [tool, setToolRaw] = useState<Tool>('cube');
@@ -106,8 +111,7 @@ export function Editor({ initial, onExit }: Props) {
   const commit = (next: Shape[]) => {
     const prev = docRef.current.shapes;
     if (prev === next) return;
-    setPast((p) => [...p.slice(-149), prev]);
-    setFuture([]);
+    pushPast(prev);
     setShapes(next);
   };
 
@@ -117,10 +121,7 @@ export function Editor({ initial, onExit }: Props) {
   const end = () => {
     const base = gestureBase.current;
     gestureBase.current = null;
-    if (base && base !== docRef.current.shapes) {
-      setPast((p) => [...p.slice(-149), base]);
-      setFuture([]);
-    }
+    if (base && base !== docRef.current.shapes) pushPast(base);
   };
   const cancelGesture = () => {
     if (gestureBase.current) setShapes(gestureBase.current);
@@ -128,18 +129,22 @@ export function Editor({ initial, onExit }: Props) {
   };
 
   const undo = () => {
+    const { past, future } = hist.current;
     if (!past.length) return;
-    setFuture((f) => [docRef.current.shapes, ...f]);
+    hist.current = { past: past.slice(0, -1), future: [docRef.current.shapes, ...future] };
+    setHistVersion((v) => v + 1);
     setShapes(past[past.length - 1]);
-    setPast((p) => p.slice(0, -1));
     setSelection([]);
+    setFaceSel(null);
   };
   const redo = () => {
+    const { past, future } = hist.current;
     if (!future.length) return;
-    setPast((p) => [...p, docRef.current.shapes]);
+    hist.current = { past: [...past, docRef.current.shapes], future: future.slice(1) };
+    setHistVersion((v) => v + 1);
     setShapes(future[0]);
-    setFuture((f) => f.slice(1));
     setSelection([]);
+    setFaceSel(null);
   };
 
   // Autosave shortly after every change.
@@ -527,10 +532,10 @@ export function Editor({ initial, onExit }: Props) {
           {doc.name}
         </button>
         <span className="grow" />
-        <button className="round" onClick={undo} disabled={!past.length} aria-label="Rückgängig" title="Rückgängig">
+        <button className="round" onClick={undo} disabled={!hist.current.past.length} aria-label="Rückgängig" title="Rückgängig">
           <I.UndoIcon />
         </button>
-        <button className="round" onClick={redo} disabled={!future.length} aria-label="Wiederholen" title="Wiederholen">
+        <button className="round" onClick={redo} disabled={!hist.current.future.length} aria-label="Wiederholen" title="Wiederholen">
           <I.RedoIcon />
         </button>
         <div className="menu-anchor">
@@ -750,7 +755,7 @@ export function Editor({ initial, onExit }: Props) {
             </button>
             <span className="sep" />
             {WIDTHS.map((_, i) => (
-              <button key={i} className={'width' + (width === i ? ' on' : '')} onClick={() => applyWidth(i)} aria-label={['Dünn', 'Mittel', 'Dick'][i]} title={['Dünn', 'Mittel', 'Dick'][i]}>
+              <button key={i} className={'width' + (width === i ? ' on' : '')} onClick={() => applyWidth(i)} aria-label={'Linie ' + ['dünn', 'mittel', 'dick'][i]} title={'Linie ' + ['dünn', 'mittel', 'dick'][i]}>
                 <span style={{ height: 2 + i * 3 }} />
               </button>
             ))}

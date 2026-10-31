@@ -123,7 +123,8 @@ export function Stage({ w, h, onScale, onDown, onMove, onUp, onCancel, onHover, 
 
   const down = (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    // Capture on the container: the element under the finger may be redrawn while drawing.
+    box.current?.setPointerCapture?.(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 1) {
       drawing.current = e.pointerId;
