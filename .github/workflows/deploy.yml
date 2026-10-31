@@ -27,6 +27,9 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      # Browser tests (tablet and phone size) against the built app.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:

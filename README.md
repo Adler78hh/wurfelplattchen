@@ -86,11 +86,12 @@ und wird erst beim ersten Öffnen geladen.
 ```sh
 npm install
 npm run dev      # Entwicklungsserver
-npm test         # Geometrie-Tests
+npm test         # Geometrie- und 3D-Tests (Vitest)
 npm run build    # statische Seite in dist/
+npm run e2e      # Oberflächentests im Browser (Playwright, Tablet und Handy; vorher bauen)
 ```
 
-Bei jedem Push auf `main` testet und baut GitHub Actions die App und veröffentlicht sie auf
+Bei jedem Push auf `main` testet und baut GitHub Actions die App (inklusive Oberflächentests) und veröffentlicht sie auf
 GitHub Pages. Dafür muss einmalig unter *Settings → Pages → Source* „GitHub Actions“ ausgewählt sein.
 
 ## Aufbau

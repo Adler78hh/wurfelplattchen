@@ -599,9 +599,9 @@ export function Editor({ initial, onExit }: Props) {
   const drawShape = (s: Shape, extra?: Partial<React.SVGProps<SVGPathElement>>) => {
     const sw = strokeWidth(g, s.width);
     if (s.kind === 'line')
-      return <path key={s.id} d={pathD(g, s.parts[0].pts, false)} fill="none" stroke={s.stroke ?? STROKES[0]} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" {...extra} />;
+      return <path key={s.id} data-kind="line" d={pathD(g, s.parts[0].pts, false)} fill="none" stroke={s.stroke ?? STROKES[0]} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" {...extra} />;
     return (
-      <g key={s.id}>
+      <g key={s.id} data-kind={s.kind}>
         {s.parts.map((p, i) => (
           <path key={i} d={pathD(g, p.pts, true)} fill={p.fill ?? 'none'} stroke={s.stroke ?? 'none'} strokeWidth={sw} strokeLinejoin="round" {...extra} />
         ))}
@@ -791,7 +791,7 @@ export function Editor({ initial, onExit }: Props) {
       </header>
 
       <main className="work">
-        <div className="stage-wrap" ref={wrapRef}>
+        <div className="stage-wrap" ref={wrapRef} data-view={JSON.stringify(doc.view)}>
           <Stage w={w} h={h} onScale={onScale} onFit={setFit} onDown={onDown} onMove={onMove} onUp={onUp} onCancel={onCancel} onHover={onHover} onZoom={zoom} onPan={pan}>
             <defs>
               <clipPath id="sheet-clip">
