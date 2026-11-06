@@ -14,7 +14,7 @@ import { type Model, type V3, bounds, buildModel } from '../geo/space';
 import type { Shape } from '../geo/shapes';
 import * as I from './icons';
 
-const MARK = '#ff6a3d';
+const MARK = '#c9548c'; // Beere
 const toThree = (p: V3) => new THREE.Vector3(p[0], p[2], p[1]);
 const ISO_DIR = new THREE.Vector3(1, 1, 1).normalize();
 
@@ -254,7 +254,7 @@ export default function View3D({ name, shapes, onClose, onFlip, onReading, onAdd
     const centre = toThree([(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2, (b.min[2] + b.max[2]) / 2]);
     const radius = Math.max(1.5, toThree([b.max[0] - b.min[0], b.max[1] - b.min[1], b.max[2] - b.min[2]]).length() / 2);
     const size = Math.ceil(radius * 1.6) * 2 + 4;
-    const ground = new THREE.GridHelper(size, size, 0xbcdcde, 0xd8ecec);
+    const ground = new THREE.GridHelper(size, size, 0xc2d7db, 0xdde9eb);
     floorRef.current = Math.min(0, Math.round(b.min[2]));
     ground.position.set(Math.round(centre.x), floorRef.current - 0.001, Math.round(centre.z));
     group.add(ground);

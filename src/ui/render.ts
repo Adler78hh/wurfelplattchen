@@ -17,8 +17,9 @@ export function pathD(g: Grid, pts: LP[], closed: boolean): string {
 
 export const strokeWidth = (g: Grid, w: number) => g.s * (WIDTHS[w] ?? WIDTHS[1]);
 
-export const GRID_DOT = '#8fbfc2';
-export const GRID_LINE = '#bcdcde';
+// Grid in light tones of Petrol (#327A86).
+export const GRID_DOT = '#8eb6bc';
+export const GRID_LINE = '#c2d7db';
 
 /** Grid lines of all three directions, as segments that cover the sheet. */
 export function gridSegments(g: Grid, w: number, h: number): [number, number, number, number][] {

@@ -833,7 +833,7 @@ export function Editor({ initial, onExit }: Props) {
       {wheel && (
         <ColorWheel
           title={wheel === 'fill' ? 'Eigene Füllfarbe' : 'Eigene Randfarbe'}
-          initial={(wheel === 'fill' ? customFill ?? fill : customStroke ?? stroke) ?? '#4fbfb3'}
+          initial={(wheel === 'fill' ? customFill ?? fill : customStroke ?? stroke) ?? '#327a86'}
           onClose={() => setWheel(null)}
           onPick={(c) => {
             if (wheel === 'fill') {

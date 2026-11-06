@@ -1,15 +1,18 @@
 :root {
   --ink: #4a3a2e;
   --muted: #8a7a6c;
-  --petrol: #3a9188;
-  --petrol-dark: #2c746c;
-  --petrol-soft: #d3e8e9;
+  /* Primary colours: Petrol #327A86 and Beere #C9548C (and tones derived from them). */
+  --petrol: #327a86;
+  --petrol-dark: #265c65;
+  --petrol-soft: #d2e2e4;
+  --beere: #c9548c;
+  --beere-soft: #f4dde8;
   --cream: #fffdf8;
   --paper: #f6fbfb;
-  --karo: rgba(63, 148, 156, 0.17);
-  --ok: #51a26b;
+  --karo: rgba(50, 122, 134, 0.16);
+  --ok: var(--petrol);
   --danger: #c0463d;
-  --glow: #18a058;
+  --glow: var(--beere);
   font-family: ui-rounded, 'SF Pro Rounded', 'Nunito', 'Varela Round', system-ui, -apple-system, 'Segoe UI', sans-serif;
   color: var(--ink);
   -webkit-tap-highlight-color: transparent;
@@ -148,10 +151,10 @@ button:disabled {
 @keyframes pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(24, 160, 88, 0.55);
+    box-shadow: 0 0 0 0 rgba(201, 84, 140, 0.55);
   }
   50% {
-    box-shadow: 0 0 0 9px rgba(24, 160, 88, 0);
+    box-shadow: 0 0 0 9px rgba(201, 84, 140, 0);
   }
 }
 
@@ -195,7 +198,7 @@ button:disabled {
   background: var(--cream);
   border: 3px solid var(--petrol-soft);
   border-radius: 22px;
-  box-shadow: 0 10px 30px rgba(40, 90, 95, 0.18);
+  box-shadow: 0 10px 30px rgba(38, 92, 101, 0.18);
 }
 
 .menu > button {
@@ -282,7 +285,7 @@ button:disabled {
 }
 
 .sheet-shadow {
-  fill: rgba(40, 90, 95, 0.16);
+  fill: rgba(38, 92, 101, 0.16);
 }
 
 .zoom {
@@ -321,7 +324,7 @@ button:disabled {
 
 .sel-line {
   fill: none;
-  stroke: #ff8c42;
+  stroke: var(--petrol-dark);
   stroke-dasharray: 1.6 1.2;
   stroke-linejoin: round;
   pointer-events: none;
@@ -329,13 +332,13 @@ button:disabled {
 
 .face-line {
   fill: none;
-  stroke: #ff8c42;
+  stroke: var(--beere);
   stroke-linejoin: round;
   pointer-events: none;
 }
 
 .sel-rect {
-  fill: rgba(58, 145, 136, 0.08);
+  fill: rgba(50, 122, 134, 0.08);
   stroke: var(--petrol);
   stroke-dasharray: 2 1.5;
 }
@@ -356,7 +359,7 @@ button:disabled {
 }
 
 .pen-close {
-  fill: rgba(24, 160, 88, 0.15);
+  fill: rgba(201, 84, 140, 0.15);
   stroke: var(--glow);
   stroke-width: 0.8;
 }
@@ -488,8 +491,8 @@ button:disabled {
 }
 
 .face.on {
-  border-color: #ff8c42;
-  box-shadow: 0 0 0 3px #ffd7bd;
+  border-color: var(--beere);
+  box-shadow: 0 0 0 3px var(--beere-soft);
 }
 
 /* Portrait: sheet on top, tools below. */
@@ -544,7 +547,7 @@ button:disabled {
   border: 3px solid var(--petrol);
   border-radius: 20px;
   padding: 10px 12px;
-  box-shadow: 0 8px 24px rgba(40, 90, 95, 0.22);
+  box-shadow: 0 8px 24px rgba(38, 92, 101, 0.22);
   animation: pop 0.25s ease-out;
 }
 
@@ -610,8 +613,8 @@ button:disabled {
 }
 
 .pill.on {
-  background: #ff6a3d;
-  border-color: #ff6a3d;
+  background: var(--beere);
+  border-color: var(--beere);
   color: #fff;
 }
 
@@ -666,7 +669,7 @@ button:disabled {
   margin-bottom: max(12px, env(safe-area-inset-bottom));
   background: #fff;
   border-radius: 24px;
-  box-shadow: 0 1px 6px rgba(40, 90, 95, 0.16);
+  box-shadow: 0 1px 6px rgba(38, 92, 101, 0.16);
   overflow: hidden;
 }
 
@@ -912,7 +915,7 @@ button:disabled {
   height: 170px;
   display: grid;
   place-items: center;
-  background: #eef5f5;
+  background: #eaf2f3;
   border-radius: 14px;
   padding: 8px;
 }
@@ -922,7 +925,7 @@ button:disabled {
   max-height: 100%;
   width: auto;
   height: 100%;
-  box-shadow: 0 2px 8px rgba(40, 90, 95, 0.18);
+  box-shadow: 0 2px 8px rgba(38, 92, 101, 0.18);
 }
 
 .card-foot {

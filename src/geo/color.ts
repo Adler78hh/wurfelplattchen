@@ -8,9 +8,10 @@ export const FILLS = [
   '#f59a4a', // Orange
   '#ffd166', // Sonnengelb
   '#93cf7e', // Apfelgrün
-  '#4fbfb3', // Türkis
+  '#327a86', // Petrol (Primärfarbe)
   '#6aa9e0', // Himmelblau
   '#a58bd8', // Flieder
+  '#c9548c', // Beere (Primärfarbe)
   '#f4a6c8', // Rosa
   '#b98b6a', // Haselnuss
   '#4a3a2e', // Schokobraun
@@ -18,7 +19,8 @@ export const FILLS = [
 ];
 
 /** Outline colours. */
-export const STROKES = ['#4a3a2e', '#2f6f72', '#c0463d', '#8a8f99', '#ffffff'];
+/** Outline colours: Schokobraun, Petrol, Beere, Grau, Weiß. */
+export const STROKES = ['#4a3a2e', '#327a86', '#c9548c', '#8a8f99', '#ffffff'];
 
 /** Stroke widths relative to the triangle edge length. */
 export const WIDTHS = [0.035, 0.07, 0.12];
